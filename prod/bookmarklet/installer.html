@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Step 6: Bidirectional Bridge Bookmarklet</title>
+	<style>
+		body {
+			font-family: sans-serif;
+			padding: 20px;
+			line-height: 1.6;
+		}
+
+		.bookmarklet {
+			display: inline-block;
+			padding: 10px 20px;
+			background-color: #007acc;
+			color: white;
+			text-decoration: none;
+			border-radius: 5px;
+			font-weight: bold;
+			cursor: grab;
+		}
+
+		.bookmarklet:hover {
+			background-color: #005fa3;
+		}
+
+		code {
+			background-color: #f0f0f0;
+			padding: 2px 5px;
+			border-radius: 3px;
+		}
+
+		textarea {
+			width: 100%;
+			height: 150px;
+			margin-top: 10px;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Step 6: 双方向通信ブックマークレット</h1>
+	<p>IDEとGeminiの間で双方向にメッセージを送受信し、自動実行サイクルを実現します。</p>
+
+	<h2>インストール方法</h2>
+	<p>以下のボタンをブックマークバーにドラッグ＆ドロップしてください。</p>
+
+	<p>
+		<a href="javascript:
+(function () {
+	const IDE_URL = 'https://aki-coding.github.io/Pyodide_Web_IDE/prod/IDE/Pyodide_IDE.html';
+	const CHECK_INTERVAL = 1000;
+	let state = 'UNKNOWN';
+	let ide_window = null;
+	let last_response_len = 0;
+
+	function get_submit_button() {
+		const btn = document.querySelector('[aria-label=&quot;プロンプトを送信&quot;]');
+		return (btn && btn.offsetParent !== null) ? btn : null;
+	}
+
+	function get_input_area() {
+		return document.querySelector('.ProseMirror') || 
+			document.querySelector('[contenteditable=&quot;true&quot;]') || 
+			document.querySelector('rich-textarea > div > p') ||
+			document.querySelector('textarea'); 
+	}
+
+	function send_to_IDE(text) {
+		if(ide_window) {
+			ide_window.postMessage({ type: 'GEMINI_RESPONSE', text: text }, '*'); 
+			console.log('Gemini Bridge: Sent to IDE');
+		}
+	}
+
+	function submit_to_gemini(text) {
+		const input = get_input_area();
+		const btn = get_submit_button();
+		if(input && btn) {
+			console.log('Gemini Bridge: Auto-submitting...');
+			input.focus();
+			input.textContent = text; 
+			input.dispatchEvent(new Event('input', { bubbles: true }));
+			setTimeout(() => {
+				const updatedBtn = get_submit_button();
+				if(updatedBtn) {
+					updatedBtn.click();
+					console.log('Gemini Bridge: Clicked submit');
+					state = 'GENERATING';
+				}
+			}, 500);
+		} else {
+			console.error('Gemini Bridge: Input or Button not found');
+			alert('自動送信エラー: 入力欄または送信ボタンが見つかりません');
+		}
+	}
+
+	function check_response() {
+		const responses = document.querySelectorAll('model-response');
+		if(responses.length > 0) {
+			const lastResponse = responses[responses.length - 1];
+			const text = lastResponse.innerText;
+			if (text.length !== last_response_len) {
+				send_to_IDE(text);
+				last_response_len = text.length;
+			}
+		}
+	}
+
+	console.log('Gemini-IDE Bridge: Initializing...');
+	ide_window = window.open(IDE_URL, 'gemini_ide_window');
+
+	window.addEventListener('message', (event) => {
+		const data = event.data;
+		console.log('Gemini Bridge: Received message', data);
+
+		if (data && data.cmd === 'goal_achieved') {
+			alert('目的達成 : ' + data.message);
+
+		} else if (data && data.cmd === 'Notification_completed') {
+			alert('ユーザー検証 : ' + data.message);
+
+        } else {
+            submit_to_gemini(JSON.stringify(data, null, 4));
+        }
+
+	});
+
+	const btn = get_submit_button();
+	state = btn ? 'WAITING_FOR_SUBMIT' : 'GENERATING';
+	console.log('Gemini Bridge: Initial state = ' + state);
+
+	setInterval(() => {
+		const currentBtn = get_submit_button();
+		if(state === 'WAITING_FOR_SUBMIT') {
+			if(!currentBtn) {
+				state = 'GENERATING';
+				console.log('Gemini Bridge: Generating...');
+				last_response_len = 0;
+			}
+		} else if(state === 'GENERATING') {
+			if(currentBtn) {
+				state = 'COMPLETE';
+				console.log('Gemini Bridge: Complete');
+				setTimeout(() => {
+					check_response();
+					state = 'WAITING_FOR_SUBMIT';
+				}, 1000);
+			}
+		}
+	}, CHECK_INTERVAL);
+
+	alert('Gemini-IDE Bridge Loaded');
+})();" class="bookmarklet">Gemini Bridge v1</a>
+	</p>
+
+	<h2>使い方の流れ</h2>
+	<ol>
+		<li>Geminiのページを開きます。</li>
+		<li>この「Gemini Bridge v1」ブックマークレットをクリックします。</li>
+		<li>IDEが開き、連携が開始されます。</li>
+	</ol>
+
+	<h3>生のソースコード</h3>
+	<textarea readonly id="sourceCode"></textarea>
+	<script>
+		// ブックマークレットのコードをテキストエリアにも表示
+		const link = document.querySelector('.bookmarklet');
+		const code = decodeURIComponent(link.href);
+		document.getElementById('sourceCode').value = code;
+	</script>
+</body>
+
+
+</html>
