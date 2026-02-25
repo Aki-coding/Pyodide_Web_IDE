@@ -1246,7 +1246,7 @@ await main_async_def()
             if (py_result_area_element.value.length > max_print_len + 1000) { // バッファを持たせて頻度を下げる
                 py_result_area_element.value = "[...Logs truncated...]\n" + py_result_area_element.value.substring(py_result_area_element.value.length - max_print_len);
             }
-            py_result_area_element.setRangeText(data, py_result_area_element.value.length, py_result_area_element.value.length, 'end'); // 末尾に追加
+            py_result_area_element.setRangeText(data, py_result_area_element.value.length, py_result_area_element.value.length, "end"); // 末尾に追加
             py_result_area_element.scrollTop = py_result_area_element.scrollHeight; // 自動スクロール
         }
 
@@ -3320,17 +3320,17 @@ json.dumps(result)
                 // ドラッグ終了時の処理 (onMouseUp) を定義
                 const onMouseUp = () => {
                     // イベントリスナーを確実に削除し、メモリリークを防ぐ
-                    document.removeEventListener('mousemove', onMouseMove);
-                    document.removeEventListener('mouseup', onMouseUp);
+                    document.removeEventListener("mousemove", onMouseMove);
+                    document.removeEventListener("mouseup", onMouseUp);
                 };
 
                 // リスナーを document に追加し、ドラッグが要素外に出ても追跡できるようにする
-                document.addEventListener('mousemove', onMouseMove);
-                document.addEventListener('mouseup', onMouseUp);
+                document.addEventListener("mousemove", onMouseMove);
+                document.addEventListener("mouseup", onMouseUp);
             };
 
             // ドラッグ開始リスナーを設定
-            element.addEventListener('mousedown', startDrag);
+            element.addEventListener("mousedown", startDrag);
         }
 
         //------------------------------------------------------------------------ ### Resizer_Logic_(FIXED) ###
@@ -4578,9 +4578,9 @@ sys.stderr = Web_Stdout()
                             jsonStr = jsonBlockMatch[1];
 
                         } else {
-                            // 2. ブロックがない場合、最初の '{' から 最後の '}' までを抽出してみる
-                            const start = text.indexOf('{');
-                            const end = text.lastIndexOf('}');
+                            // 2. ブロックがない場合、最初の "{" から 最後の "}" までを抽出してみる
+                            const start = text.indexOf("{");
+                            const end = text.lastIndexOf("}");
                             if (start !== -1 && end !== -1 && end > start) {
                                 jsonStr = text.substring(start, end + 1);
                             }
@@ -4742,7 +4742,7 @@ sys.stderr = Web_Stdout()
                 // --------------- ### シリアル通信依頼受信
                 if (data && data.cmd === "serial_write") {
                     const req_id = data.req_id;
-                    const sub_cmd = data.obj.sub_cmd; // 'connect', 'write', 'disconnect'
+                    const sub_cmd = data.obj.sub_cmd; // "connect", "write", "disconnect"
                     const args = data.args || [];
 
                     try {
