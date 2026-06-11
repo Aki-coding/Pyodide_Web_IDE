@@ -49,6 +49,41 @@
             font-family: sans-serif;
             text-align: center;
         }
+
+        #main_wrapper {
+            display: flex;
+            flex: 1;
+            width: 100%;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .ai_sidebar_css {
+            width: 350px;
+            background-color: #252526;
+            border-left: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            color: #fff;
+            font-family: sans-serif;
+            flex-shrink: 0;
+        }
+
+        body.ai-sidebar-hidden .ai_sidebar_css {
+            display: none;
+        }
+
+        #ai_sidebar_resizer_v {
+            width: 5px; /* リサイザーの幅 */
+            cursor: ew-resize; /* 左右リサイズのカーソル表示 */
+            background-color: #444; /* バーの背景色 */
+            height: 100%; /* 高さいっぱいまで伸ばす */
+            flex-shrink: 0; /* レイアウト崩れによる潰れ防止 */
+        }
+
+        body.ai-sidebar-hidden #ai_sidebar_resizer_v {
+            display: none; /* AIサイドバー非表示時はリサイザーも隠す */
+        }
     </style>
 
     <style id="header_style">
@@ -162,7 +197,7 @@
 
 </head>
 
-<body>
+<body class="ai-sidebar-hidden">
 
     <div id="loader">
         <div>Initializing Sandbox...</div>
@@ -181,6 +216,18 @@
                         <rect y="400" width="96" height="96"></rect>
                         <rect x="160" y="400" width="352" height="96"></rect>
                     </g>
+                </svg>
+            </button>
+            <!-- [✧️] -->
+            <button id="toggle_ai_sidebar" class="other_button_css" title="Toggle AI Sidebar" disabled>
+                <svg width="18" height="18" viewBox="0 0 100 100">
+                    <defs>
+                        <linearGradient id="geminiBrandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#1A73E8" />    <stop offset="25%" stop-color="#8AB4F8" />   <stop offset="50%" stop-color="#C58AF9" />   <stop offset="75%" stop-color="#F28B82" />   <stop offset="100%" stop-color="#FDD663" />  </linearGradient>
+                    </defs>
+                    <path
+                        d="M50 5C53 25 75 47 95 50C75 53 53 75 50 95C47 75 25 53 5 50C25 47 47 25 50 5Z"
+                        fill="url(#geminiBrandGradient)" />
                 </svg>
             </button>
             <button id="drive_dir" class="other_button_css" style="display: none;" disabled>Drive_Dir</button>
@@ -289,6 +336,44 @@
                 title="serial_stop_bits" value=1 required minlength="1" maxlength="3" size="2">
         </div>
     </header>
+
+    <div id="main_wrapper">
+        <iframe id="ide_container"
+            sandbox="allow-scripts allow-modals allow-downloads allow-forms allow-popups allow-presentation"
+            allow="clipboard-read; clipboard-write; serial; file-system-read; file-system-write;"
+            style="display: none;"></iframe>
+
+        <div id="ai_sidebar_resizer_v"></div>
+        <div id="ai_sidebar" class="ai_sidebar_css">
+            <div style="padding: 10px; font-weight: bold; border-bottom: 1px solid #333; font-size: 11pt; background-color: #333; display: flex; justify-content: space-between; align-items: center;">
+                <span>AI Chat (Gemini Nano)</span>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span id="nano-status" style="font-size: 8pt; color: #aaa;">未起動</span>
+                    <button id="nano-reset-btn" title="セッションリセット" style="background: none; border: none; color: #aaa; cursor: pointer; font-size: 11pt; padding: 2px 5px; display: flex; align-items: center; justify-content: center; transition: color 0.2s;">
+                        [⟳]
+                    </button>
+                </div>
+            </div>
+            <div id="nano-chat-container" style="flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 10px; font-size: 10pt;">
+                <div style="background-color: #333; padding: 8px 12px; border-radius: 4px; align-self: flex-start; max-width: 85%; color: #ccc;">
+                    こんにちは！ローカル環境の Gemini Nano エージェントです。下のボタンからAIを起動してください。
+                </div>
+            </div>
+            <div id="nano-input-container" style="padding: 10px; border-top: 1px solid #333; background-color: #1e1e1e; display: flex; flex-direction: column; gap: 8px;">
+                <button id="nano-start-btn" style="width: 100%; padding: 8px; background-color: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">
+                    🟢 AIを起動する
+                </button>
+                <div id="nano-mode-container" style="display: none; align-items: center; gap: 6px; font-size: 9pt; color: #aaa; user-select: none; margin-bottom: -2px;">
+                    <input type="checkbox" id="nano-agent-toggle" checked style="cursor: pointer;">
+                    <label for="nano-agent-toggle" style="cursor: pointer;">🤖 エージェントループを有効化</label>
+                </div>
+                <div id="nano-chat-input-box" style="display: none; gap: 6px;">
+                    <textarea id="nano-user-input" placeholder="指令を入力... (Enterで送信)" style="flex: 1; height: 32px; padding: 6px; background-color: #2d2d2d; color: white; border: 1px solid #555; border-radius: 4px; resize: none; outline: none; font-size: 10pt;"></textarea>
+                    <button id="nano-send-btn" style="padding: 0 12px; background-color: #007acc; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;" disabled>送信</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <iframe id="ide_container"
         sandbox="allow-scripts allow-modals allow-downloads allow-forms allow-popups allow-presentation"
@@ -1062,7 +1147,7 @@
 
     <script id="script_global_variables">
         /* #################### ↓↓↓ script_global_variables ↓↓↓ #################### */
-        // --------------- ### global_variables
+        //-------------------------------------------------------- ### global_variables
         var pyodide_js;
         let js_map_global_data = new Map();
         let js_obj_global_data = {};
@@ -1073,35 +1158,35 @@
         let stop_watchdog_timer = null; // 強制停止タイマーのID管理用
         let agent_run_flag = false; // AIエージェントからのスクリプト実行指示かどうか
 
-        // --------------- ### editor_element
+        //-------------------------------------------------------- ### editor_element
         const editor_element = document.getElementById("editor");
         const preview_container_element = document.getElementById("preview_container");
         const preview_frame_element = document.getElementById("preview_frame");
         const plot_container_element = document.getElementById("plot_container");
         const spreadsheet_container_element = document.getElementById("spreadsheet_container");
         const tab_bar_element = document.getElementById("tab_bar_container");
-        // --------------- ### footer_element
+        //-------------------------------------------------------- ### footer_element
         const footer_area_container_element = document.getElementById("footer_area_container"); // (py_result_area & js_result_area & extension_area)
         const py_result_area_element = document.getElementById("py_result_area");
         const js_result_area_element = document.getElementById("js_result_area");
         const extension_area_element = document.getElementById("extension_area");
-        // --------------- ### sidebar_element
+        //-------------------------------------------------------- ### sidebar_element
         const sidebar_area_container_element = document.getElementById("sidebar_area_container"); // (script_exp & vfs_exp & outline)
         const script_container_element = document.getElementById("script_explorer_container");
         const vfs_container_element = document.getElementById("vfs_explorer_container");
         const outline_container_element = document.getElementById("outline_container");
         const outline_content_element = document.getElementById("code_outline");
 
-        // --------------- ### footer_resizer_element
+        //-------------------------------------------------------- ### footer_resizer_element
         const footer_resizer_h_element = document.getElementById("footer_resizer_h"); // (editor <-> footer)
         const footer_resizer_v_element = document.getElementById("output_resizer_v"); // (py_result_area <-> js_result_area)
         const footer_resizer_v2_element = document.getElementById("output_resizer_v2"); // (js_result_area <-> extension_area)
-        // --------------- ### sidebar_resizer_element
+        //-------------------------------------------------------- ### sidebar_resizer_element
         const sidebar_resizer_v_element = document.getElementById("sidebar_resizer_v"); // (sidebar <-> (editor & footer))
         const sidebar_resizer_h_element = document.getElementById("sidebar_resizer_h"); // (Script_Explorer <-> VFS_Explorer)
         const sidebar_resizer_h2_element = document.getElementById("sidebar_resizer_h2"); // (VFS_Explorer <-> outline)
 
-        // --------------- ### sidebar_button_element
+        //-------------------------------------------------------- ### sidebar_button_element
         const script_mount_button = document.getElementById("script_mount");
         const script_upload_button = document.getElementById("script_upload");
         const refresh_script_button = document.getElementById("refresh_script_explorer");
@@ -1109,11 +1194,11 @@
         const refresh_vfs_button = document.getElementById("refresh_vfs_explorer");
         const reset_vfs_button = document.getElementById("reset_vfs_explorer");
 
-        // --------------- ### tree_element
+        //-------------------------------------------------------- ### tree_element
         const script_explorer_element = document.getElementById("script_explorer"); // スクリプトツリー
         const vfs_explorer_element = document.getElementById("vfs_explorer"); // VFSツリー
 
-        // --------------- ### tab_system_variables
+        //-------------------------------------------------------- ### tab_system_variables
         let tabs_data = {}; // タブ情報を管理するオブジェクト { tab_id: { model: ..., name: ... } }
         let active_tab_id = null; // 現在アクティブなタブID
         let tab_counter = 0; // 一意なID生成用
@@ -1121,15 +1206,15 @@
         let dragging_tab_element = null; // 現在ドラッグ中のタブ要素
         let spreadsheet_instances = {}; // CSVタブごとのスプレッドシートインスタンスを保持
 
-        // --------------- ### ローカルフォルダマウント関連
+        //-------------------------------------------------------- ### ローカルフォルダマウント関連
         let mounted_dir_handle = null; // 現在マウントされているDirectoryHandle
         let is_mounted = false; // マウント状態を追跡
         const MOUNT_PATH = "/mnt/vfs_root"; // PyodideのVFS内でマウントするパス
 
-        // --------------- ### 通信ブリッジ用変数
+        //-------------------------------------------------------- ### 通信ブリッジ用変数
         const pending_host_requests = {}; // 応答待ちのPromiseを管理 { req_id: {resolve, reject} }
 
-        // --------------- ### プレビューからのメッセージを受け取るPythonのコールバック関数
+        //-------------------------------------------------------- ### プレビューからのメッセージを受け取るPythonのコールバック関数
         let py_message_callback = null;
         // Python側からコールバック関数を登録するための関数
         function js_register_python_callback(callback) {
@@ -1191,7 +1276,7 @@ await main_async_def()
     <script id="script_js_call_by_pyodide">
         /* #################### ↓↓↓ script_js_call_by_pyodide ↓↓↓ #################### */
 
-        //------------------------------------------------------------------------ ### post_message (ide_frame_to_host_frame) 送信 ###
+        //-------------------------------------------------------- ### post_message (ide_frame_to_host_frame) 送信 ###
         function js_post_message(cmd, target = "host", origin = "*", obj = {}, args = []) {
             return new Promise((resolve, reject) => {
                 console.log("# called_js_post_message :", cmd)
@@ -1218,7 +1303,7 @@ await main_async_def()
             });
         }
 
-        //------------------------------------------------------------------------ ### js_injector ###
+        //-------------------------------------------------------- ### js_injector ###
         // JavaScriptコード文字列を <script> タグとして動的に挿入・実行
         // Web Serial API 等、動的に機能を追加したい場合に有効
         // 野心的だが、ウェブページ自体を改変する危険な機能でもある
@@ -1242,7 +1327,7 @@ await main_async_def()
         }
         //*/
 
-        //------------------------------------------------------------------------ ### js_print ###
+        //-------------------------------------------------------- ### js_print ###
         function js_print(data) {
             if (py_result_area_element.value.length > max_print_len + 1000) { // バッファを持たせて頻度を下げる
                 py_result_area_element.value = "[...Logs truncated...]\n" + py_result_area_element.value.substring(py_result_area_element.value.length - max_print_len);
@@ -1251,12 +1336,12 @@ await main_async_def()
             py_result_area_element.scrollTop = py_result_area_element.scrollHeight; // 自動スクロール
         }
 
-        //------------------------------------------------------------------------ ### js_print_clear ###
+        //-------------------------------------------------------- ### js_print_clear ###
         function js_print_clear() {
             py_result_area_element.value = "";
         }
 
-        //------------------------------------------------------------------------ ### JS_Plot_Display ###
+        //-------------------------------------------------------- ### JS_Plot_Display ###
         function js_add_plot_image_old(base64_str) { // Base64画像を受け取って表示する関数
             const img = document.createElement("img");
             img.src = "data:image/png;base64," + base64_str;
@@ -1277,7 +1362,7 @@ await main_async_def()
             extension_area_element.innerHTML = "";
         }
 
-        //------------------------------------------------------------------------ ### JS_Plot_Display (New Tab Version) ###
+        //-------------------------------------------------------- ### JS_Plot_Display (New Tab Version) ###
         function js_add_plot_image(base64_str) {
             const PLOT_TAB_NAME = "Matplotlib_Plots";
 
@@ -1337,7 +1422,7 @@ await main_async_def()
             }
         }
 
-        //------------------------------------------------------------------------ ### js_encrypt_zipper ###
+        //-------------------------------------------------------- ### js_encrypt_zipper ###
         /**
          * Pyodide VFS の内容をZIPとしてダウンロードします。
          * パスワードがある場合は暗号化、ない場合は標準ZIPとなります。
@@ -1492,7 +1577,7 @@ await main_async_def()
             }
         }
 
-        //------------------------------------------------------------------------ ### js_decrypt_zipper_vfs ###
+        //-------------------------------------------------------- ### js_decrypt_zipper_vfs ###
         /**
          * VFS上の暗号化ZIPを読み込み、パスワードを解除した標準ZIPに変換してダウンロードする
          * @param {string} input_vfs_path - VFS上の暗号化ZIPのパス (例: "/mnt/secret.zip")
@@ -1574,7 +1659,7 @@ await main_async_def()
             }
         }
 
-        //------------------------------------------------------------------------ ### VFS_File_Download ###
+        //-------------------------------------------------------- ### VFS_File_Download ###
         /**
          * Pyodide VFS 内の単一ファイルを読み込み、ブラウザのダウンロード機能をトリガーします。
          * @param {string} vfs_path - ダウンロード対象のVFSフルパス
@@ -1612,7 +1697,7 @@ await main_async_def()
             }
         }
 
-        //------------------------------------------------------------------------ ### File_Download_Helper ###
+        //-------------------------------------------------------- ### File_Download_Helper ###
         function js_download_file(data, filename, mime_type = "application/octet-stream") {
             let blob;
             if (data instanceof Uint8Array) {
@@ -1631,7 +1716,7 @@ await main_async_def()
             URL.revokeObjectURL(a.href);
         }
 
-        //------------------------------------------------------------------------ ### JS_Get_CSV_Data ###
+        //-------------------------------------------------------- ### JS_Get_CSV_Data ###
         function js_get_csv_data(file_name) {
             // 1. 最優先：現在アクティブ（表示中）なタブが対象のファイル名かチェック
             if (active_tab_id && tabs_data[active_tab_id]) {
@@ -1655,7 +1740,7 @@ await main_async_def()
             return null; // 開かれているタブの中に該当ファイルが見つからない場合
         }
 
-        //------------------------------------------------------------------------ ### Monacoローダー ###
+        //-------------------------------------------------------- ### Monacoローダー ###
         function load_script(src) {
             return new Promise((resolve, reject) => {
                 const script = document.createElement("script");
@@ -1674,7 +1759,7 @@ await main_async_def()
     <script id="script_MAIN">
         /* #################### ↓↓↓ script_MAIN ↓↓↓ #################### */
 
-        //------------------------------------------------------------------------ ### IDE_frame_post_message_汎用受信 ###
+        //-------------------------------------------------------- ### IDE_frame_post_message_汎用受信 ###
         window.addEventListener("message", (event) => {
             const data = event.data;
             if (!data) return;
@@ -1696,7 +1781,7 @@ await main_async_def()
             // 2. host_frameからのpost
             if (event.source === window.parent) {
 
-                // --------------- ### ボタン入力受信
+                //-------------------------------------------------------- ### ボタン入力受信
                 if (data.cmd === "click") {
                     //console.log("# host_to_ide : button_clicked")
                     switch (data.obj.click) {
@@ -1727,7 +1812,7 @@ await main_async_def()
                     }
                 }
 
-                // --------------- ### シリアル受信データのハンドリング
+                //-------------------------------------------------------- ### シリアル受信データのハンドリング
                 else if (data.cmd === "serial_rx") {
                     // Python側でコールバック関数が登録されていれば呼び出す
                     if (typeof py_message_callback === "function") {
@@ -1736,7 +1821,7 @@ await main_async_def()
                     }
                 }
 
-                // --------------- ### 変数データ受信
+                //-------------------------------------------------------- ### 変数データ受信
                 else if (data.cmd === "var_val") {
                     //console.log("# host_to_ide : val_post")
                     const local_obj = data.obj;
@@ -1753,7 +1838,7 @@ await main_async_def()
                     //console.log("# js_obj_global_data[temp] :", js_obj_global_data["temp"])
                 }
 
-                // --------------- ### Agent_Run_Handler
+                //-------------------------------------------------------- ### Agent_Run_Handler
                 else if (data.cmd === "agent_run") {
                     const code = data.code;
                     if (editor && code) {
@@ -1854,7 +1939,7 @@ await main_async_def()
             }
         });
 
-        //------------------------------------------------------------------------ ### Loading_制御関数 ###
+        //-------------------------------------------------------- ### Loading_制御関数 ###
         function toggle_loading(is_loading, text = "Loading...") {
             const overlay = document.getElementById("loading_overlay");
             const msg_el = document.getElementById("loading_text");
@@ -1868,7 +1953,7 @@ await main_async_def()
             }
         }
 
-        //------------------------------------------------------------------------ ### button_enabled_disabled ###
+        //-------------------------------------------------------- ### button_enabled_disabled ###
         const control_button_list = [
             "script_upload",
             "vfs_upload",
@@ -1886,7 +1971,7 @@ await main_async_def()
             });
         }
 
-        //------------------------------------------------------------------------ ### Reset_VFS_Button ###
+        //-------------------------------------------------------- ### Reset_VFS_Button ###
         if (reset_vfs_button) {
             reset_vfs_button.addEventListener("click", () => {
                 const ok = confirm("VFS 内のすべてのファイル・フォルダを削除します。\nよろしいですか？");
@@ -1926,7 +2011,7 @@ await main_async_def()
             });
         }
 
-        //------------------------------------------------------------------------ ### Monaco_Editor_Initialization ###
+        //-------------------------------------------------------- ### Monaco_Editor_Initialization ###
         function initialize_monaco_editor() {
             // Promiseを返すようにし、Monacoの準備完了を待てるようにする
             return new Promise((resolve) => {
@@ -1968,7 +2053,7 @@ await main_async_def()
             });
         }
 
-        // ------------------------------------------------------------------------ ### Create_&_Open_Tab ###
+        //-------------------------------------------------------- ### Create_&_Open_Tab ###
         function open_tab(file_name, content, is_preview = false) {
             // 既に同じ名前のタブが開いているか確認
             for (const id in tabs_data) {
@@ -2116,7 +2201,7 @@ await main_async_def()
             activate_tab(tab_id);
         }
 
-        // ------------------------------------------------------------------------ ### Activate Tab ###
+        //-------------------------------------------------------- ### Activate Tab ###
         function activate_tab(target_id) {
             if (!tabs_data[target_id]) return;
 
@@ -2364,7 +2449,7 @@ setup_web_serial();
             }
         }
 
-        // ------------------------------------------------------------------------ ### Close_Tab ###
+        //-------------------------------------------------------- ### Close_Tab ###
         function close_tab(tab_id) {
             // Monaco Editor のモデルを破棄（dispose）する
             if (tabs_data[tab_id] && tabs_data[tab_id].model) {
@@ -2411,7 +2496,7 @@ setup_web_serial();
             }
         }
 
-        //------------------------------------------------------------------------ ### +_Tab ###
+        //-------------------------------------------------------- ### +_Tab ###
         function setup_tab_plus_button() {
             if (tab_plus_button_element) return;
             tab_plus_button_element = document.createElement("div");
@@ -2422,7 +2507,7 @@ setup_web_serial();
             tab_bar_element.appendChild(tab_plus_button_element);
         }
 
-        // ------------------------------------------------------------------------ ### Tab_Drag_And_Drop ###
+        //-------------------------------------------------------- ### Tab_Drag_And_Drop ###
         function enable_tab_drag_and_drop(tab_element) {
             // ドラッグを有効化
             tab_element.setAttribute("draggable", true);
@@ -2457,7 +2542,7 @@ setup_web_serial();
             });
         }
 
-        //------------------------------------------------------------------------ ### File_Explorer_Logic ###
+        //-------------------------------------------------------- ### File_Explorer_Logic ###
         // ファイルツリーを描画する（ローカルフォルダにも対応）
         function render_file_explorer(tree, type = "drive", target_element) { // target_element 引数を追加
             target_element.innerHTML = ""; // Clear loading message
@@ -2465,7 +2550,7 @@ setup_web_serial();
             target_element.appendChild(rootUl);
         }
 
-        //------------------------------------------------------------------------ ### Explorer_Selection_Helper ###
+        //-------------------------------------------------------- ### Explorer_Selection_Helper ###
         // エクスプローラー内のアイテム選択状態（色変え）を管理する関数
         function handle_explorer_item_click(target_row_element) {
             // 1. 既存の選択状態(.selected_item)をすべて解除
@@ -2479,7 +2564,7 @@ setup_web_serial();
             }
         }
 
-        //------------------------------------------------------------------------ ### update_editor ###
+        //-------------------------------------------------------- ### update_editor ###
         function update_editor_with_content(file_name, content, source_desc) {
             try {
                 if (!editor) throw new Error("Editor not initialized");
@@ -2498,7 +2583,7 @@ setup_web_serial();
             }
         }
 
-        //------------------------------------------------------------------------ ### Script_Explorerを更新する ###
+        //-------------------------------------------------------- ### Script_Explorerを更新する ###
         function refresh_script_explorer_view() {
             try {
                 toggle_loading(true, "Refreshing Script Tree..."); // ローディング表示開始
@@ -2514,7 +2599,7 @@ setup_web_serial();
             }
         }
 
-        //------------------------------------------------------------------------ ### エクスプローラーアイテムへのイベント付与ロジックの分離 ###
+        //-------------------------------------------------------- ### エクスプローラーアイテムへのイベント付与ロジックの分離 ###
         function attach_explorer_item_events(li, row_div, item, type) { // 引数に row_div を追加
             // --- クリックイベント (共通) ---
             // li ではなく row_div (行部分) にイベントを貼ることで、子要素クリック時のバブリング問題を回避
@@ -2609,7 +2694,7 @@ setup_web_serial();
             }
         }
 
-        //------------------------------------------------------------------------ ### 再帰的にファイルツリーのHTML要素を生成する ###
+        //-------------------------------------------------------- ### 再帰的にファイルツリーのHTML要素を生成する ###
         function create_tree_level(items, type) {
             const ul = document.createElement("ul");
 
@@ -2658,7 +2743,7 @@ setup_web_serial();
             return ul;
         }
 
-        //------------------------------------------------------------------------ ### ローカルマウントから読み込む ###
+        //-------------------------------------------------------- ### ローカルマウントから読み込む ###
         async function load_local_file_content_from_handle(file_handle, file_name) {
             try {
                 js_result_area_element.value = `Loading ${file_name}...`;
@@ -2674,7 +2759,7 @@ setup_web_serial();
             }
         }
 
-        //------------------------------------------------------------------------ ### ファイルアップロード (File Object) から読み込む ###
+        //-------------------------------------------------------- ### ファイルアップロード (File Object) から読み込む ###
         async function load_local_file_content_from_file(file_object, file_name) {
 
             if (!file_object || typeof file_object.text !== "function") {
@@ -2695,7 +2780,7 @@ setup_web_serial();
             }
         }
 
-        //------------------------------------------------------------------------ ### VFS (Pyodide FS) から読み込む ###
+        //-------------------------------------------------------- ### VFS (Pyodide FS) から読み込む ###
         function load_local_file_content_from_vfs(vfs_path, file_name) {
             try {
                 if (!pyodide_js || !pyodide_js.FS) {
@@ -2716,7 +2801,7 @@ setup_web_serial();
             }
         }
 
-        //------------------------------------------------------------------------ ### 文字コード自動判別関数 ###
+        //-------------------------------------------------------- ### 文字コード自動判別関数 ###
         function decode_auto(uint8_array) {
             // 1. UTF-8 (fatal: true で不正バイトがあればエラーを吐かせる)
             try {
@@ -2747,7 +2832,7 @@ setup_web_serial();
             return decoder.decode(uint8_array);
         }
 
-        //------------------------------------------------------------------------ ### ローカルフォルダ選択ボタンの処理
+        //-------------------------------------------------------- ### ローカルフォルダ選択ボタンの処理
         async function handle_script_upload_click() {
             try {
                 const dir_handle = await window.showDirectoryPicker();
@@ -2813,7 +2898,7 @@ setup_web_serial();
             }
         }
 
-        //------------------------------------------------------------------------ ### スクリプトツリー用 ローカルフォルダ選択ボタンの処理 (Local専用, VFSマウントなし)
+        //-------------------------------------------------------- ### スクリプトツリー用 ローカルフォルダ選択ボタンの処理 (Local専用, VFSマウントなし)
         async function handle_open_script_folder_click() {
             try {
                 const dir_handle = await window.showDirectoryPicker();
@@ -2840,7 +2925,7 @@ setup_web_serial();
             }
         }
 
-        //------------------------------------------------------------------------ ### ディレクトリハンドルから再帰的にファイルツリー構造を生成する
+        //-------------------------------------------------------- ### ディレクトリハンドルから再帰的にファイルツリー構造を生成する
         async function create_tree_from_directory(directoryHandle) {
             const tree = [];
             for await (const entry of directoryHandle.values()) {
@@ -2864,7 +2949,7 @@ setup_web_serial();
             return tree;
         }
 
-        //------------------------------------------------------------------------ ### (Pyodide VFS用) ディレクトリを再帰的に削除する
+        //-------------------------------------------------------- ### (Pyodide VFS用) ディレクトリを再帰的に削除する
         /**
          * @param {string} path - VFS内のパス
          */
@@ -2891,7 +2976,7 @@ setup_web_serial();
             }
         }
 
-        //------------------------------------------------------------------------ ### エクスプローラーツリー構築ヘルパー
+        //-------------------------------------------------------- ### エクスプローラーツリー構築ヘルパー
         /**
          * @param {string} path - VFS内の相対パス (例: "sub/data.txt")
          * @param {Array} tree - 構築中のツリー配列 (トップレベル)
@@ -2929,7 +3014,7 @@ setup_web_serial();
             }
         }
 
-        //------------------------------------------------------------------------ ### 選択されたローカルフォルダをスクリプトツリーにアップロード
+        //-------------------------------------------------------- ### 選択されたローカルフォルダをスクリプトツリーにアップロード
         async function handle_upload_folder_to_script_tree(event) {
             const files = event.target.files;
             if (!files || files.length === 0) return;
@@ -2968,7 +3053,7 @@ setup_web_serial();
             }
         }
 
-        //------------------------------------------------------------------------ ### 選択されたローカルフォルダをPyodideのVFSにアップロード
+        //-------------------------------------------------------- ### 選択されたローカルフォルダをPyodideのVFSにアップロード
         async function handle_upload_folder_to_vfs(event) {
             const files = event.target.files;
             if (!files || files.length === 0) {
@@ -3056,7 +3141,7 @@ setup_web_serial();
             }
         }
 
-        //------------------------------------------------------------------------ ### Pyodide VFSから再帰的にツリーを構築する
+        //-------------------------------------------------------- ### Pyodide VFSから再帰的にツリーを構築する
         function create_tree_from_vfs(path) {
             const tree = [];
             let entries;
@@ -3132,7 +3217,7 @@ setup_web_serial();
             }
         }
 
-        //------------------------------------------------------------------------ ### Syntax_Check_Logic ###
+        //-------------------------------------------------------- ### Syntax_Check_Logic ###
         // 構文解析とエラーチェックを一度に行う関数
         async function analyze_python_code(code) {
 
@@ -3288,14 +3373,14 @@ json.dumps(result)
             });
         }
 
-        //------------------------------------------------------------------------ ### Outline_jump
+        //-------------------------------------------------------- ### Outline_jump
         function jump_to_line(lineNumber) {
             editor.revealLineInCenter(lineNumber);
             editor.setPosition({ lineNumber: lineNumber, column: 1 });
             editor.focus();
         }
 
-        //------------------------------------------------------------------------ ### Drag_Handler_(メモリリーク対策) ###
+        //-------------------------------------------------------- ### Drag_Handler_(メモリリーク対策) ###
         function attach_drag_handler(element, onDrag, onStart) {
             if (!element) return; // 要素が存在しない場合は何もしない
 
@@ -3334,7 +3419,7 @@ json.dumps(result)
             element.addEventListener("mousedown", startDrag);
         }
 
-        //------------------------------------------------------------------------ ### Resizer_Logic_(FIXED) ###
+        //-------------------------------------------------------- ### Resizer_Logic_(FIXED) ###
         function setup_resizers() {
             // 1. sidebar_area_width // (sidebar <-> (editor & footer))
             let start_sidebar_width;
@@ -3425,7 +3510,7 @@ json.dumps(result)
             });
         }
 
-        //------------------------------------------------------------------------ ### Footer_Resizer_Logic ###
+        //-------------------------------------------------------- ### Footer_Resizer_Logic ###
         // footer_area_height (editor <-> footer)
         function setup_footer_resizer() {
             const footer = document.querySelector("footer");
@@ -3439,7 +3524,7 @@ json.dumps(result)
             }, () => start_h = footer.offsetHeight);
         }
 
-        //------------------------------------------------------------------------ ### Editor_Drag&Drop_Logic ###
+        //-------------------------------------------------------- ### Editor_Drag&Drop_Logic ###
         function setup_editor_drag_and_drop() {
             const editor_div = document.getElementById("editor");
 
@@ -3485,7 +3570,7 @@ json.dumps(result)
             });
         }
 
-        //------------------------------------------------------------------------ ### VFS_Drag&Drop_Logic ###
+        //-------------------------------------------------------- ### VFS_Drag&Drop_Logic ###
         async function handle_vfs_drop(event) {
             event.preventDefault();
             vfs_container_element.classList.remove("dragover"); // 枠線を消す
@@ -3548,7 +3633,7 @@ json.dumps(result)
             drop_zone.addEventListener("drop", handle_vfs_drop);
         }
 
-        //------------------------------------------------------------------------ ### VFS_File_mover ###
+        //-------------------------------------------------------- ### VFS_File_mover ###
         function handle_vfs_move(src_path, dest_folder_path) {
             if (src_path === dest_folder_path) return; // 自分自身への移動は無視
 
@@ -3589,7 +3674,7 @@ json.dumps(result)
             }
         }
 
-        //------------------------------------------------------------------------ ### Pyodide_and_Execution_Logic ###
+        //-------------------------------------------------------- ### Pyodide_and_Execution_Logic ###
         async function main_ini() { // pyodide初期化
             //document.querySelector("header").style.zIndex = "9998";
             pyodide_js = await loadPyodide();
@@ -3758,7 +3843,7 @@ if os.path.exists("${MOUNT_PATH}"):
             //pyodide_js.globals.get("py_result", py_result); // pyodideの変数(関数も可)をJavaScriptから参照
         };
 
-        //------------------------------------------------------------------------ ### RUN
+        //-------------------------------------------------------- ### RUN
         async function button_RUN_click() {
 
             try {
@@ -3891,7 +3976,7 @@ sys.stderr = Web_Stdout()
             }
         };
 
-        //------------------------------------------------------------------------ ### STOP
+        //-------------------------------------------------------- ### STOP
         async function button_STOP_click() {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -3931,7 +4016,7 @@ sys.stderr = Web_Stdout()
             }
         }
 
-        //------------------------------------------------------------------------ ### Initial_Load ###
+        //-------------------------------------------------------- ### Initial_Load ###
         window.onload = async () => {
 
             try {
@@ -3968,7 +4053,7 @@ sys.stderr = Web_Stdout()
 ################################################`;
                 js_post_message("script_complete", "host", "*", {}, []);
                 console.log("# IDE_frame_log : script_complete")
-                // --------------- ### Refresh Button Logic ###
+                //-------------------------------------------------------- ### Refresh Button Logic ###
                 if (refresh_script_button) {
                     refresh_script_button.addEventListener("click", (e) => {
                         e.stopPropagation(); // h3のクリックイベントを止める
@@ -4033,9 +4118,7 @@ sys.stderr = Web_Stdout()
 
         (() => {
 
-            //------------------------------------------------------------------------ ### global_variables ###
-            // --------------- ### global_variables
-
+            //-------------------------------------------------------- ### global_variables ###
             const top_level_flag = (() => { // 自身がトップレベルウィンドウか、iframe内か判定
                 try {
                     // 自身(self) と 最上位(top) が一致すればトップレベル
@@ -4066,10 +4149,94 @@ sys.stderr = Web_Stdout()
             console.log("# host_frame_log : top_level_flag :", top_level_flag, typeof top_level_flag);
             console.log("# host_frame_log : dev_flag :", dev_flag, typeof dev_flag);
 
-            // --------------- ### Gemini_Window_Management
+            //-------------------------------------------------------- ### Gemini_Window_Management
             let gemini_window = null; // Geminiウィンドウの参照を保持する変数
 
-            // --------------- ### custom_system_prompt
+            //-------------------------------------------------------- ### Gemini_Nano_Management
+            let activeAgentSource = null; // 現在Pythonスクリプトを実行要請しているエージェント ("NANO" | "WEB_BRIDGE")
+
+            // エージェント（Nano / Web版ブリッジ）から届いたコマンドを共通で処理する関数
+            function executeAgentCommand(commandData, agentSource) {
+                if (!commandData || !commandData.cmd) return;
+
+                console.log(`[Agent Command] Source: ${agentSource}, Cmd: ${commandData.cmd}`);
+
+                switch (commandData.cmd) {
+                    case "script_run_request":
+                        if (commandData.script) {
+                            activeAgentSource = agentSource; // スクリプト実行完了時のレスポンス返し先を記憶
+                            const ideFrame = document.getElementById("ide_container");
+                            if (ideFrame && ideFrame.contentWindow) {
+                                ideFrame.contentWindow.postMessage({ "cmd": "agent_run", "code": commandData.script }, "*");
+                            }
+                        }
+                        break;
+
+                    case "add_memory":
+                        if (commandData.content) {
+                            window.agent_memory = window.agent_memory || {};
+                            if (Array.isArray(commandData.content)) {
+                                commandData.content.forEach(item => {
+                                    Object.assign(window.agent_memory, item);
+                                });
+                            }
+                            const responsePayload = { "cmd": "Memorization_complete" };
+                            sendResponseToAgent(responsePayload, agentSource);
+                        }
+                        break;
+
+                    case "memory_presentation":
+                        const memoryPayload = { "cmd": "memory", "content": JSON.stringify(window.agent_memory || {}, null, 4) };
+                        sendResponseToAgent(memoryPayload, agentSource);
+                        break;
+
+                    case "user_verification":
+                        if (commandData.message) {
+                            alert("ユーザー検証依頼:\n" + commandData.message);
+                            const verifyPayload = { "cmd": "Notification_completed", "message": commandData.message };
+                            sendResponseToAgent(verifyPayload, agentSource);
+                        }
+                        break;
+
+                    case "goal_achieved":
+                        if (commandData.message) {
+                            alert("目的達成:\n" + commandData.message);
+                            const goalPayload = { "cmd": "goal_achieved", "message": commandData.message };
+                            sendResponseToAgent(goalPayload, agentSource);
+                        }
+                        break;
+
+                    case "Multiple_commands":
+                    case "No_Command":
+                        if (commandData.message) {
+                            const errorPayload = { "cmd": commandData.cmd, "message": commandData.message };
+                            sendResponseToAgent(errorPayload, agentSource);
+                        }
+                        break;
+
+                    default:
+                        console.warn("Unknown agent command:", commandData.cmd);
+                        break;
+                }
+            }
+
+            // 指定されたエージェントヘレスポンスを返却する共通関数
+            function sendResponseToAgent(payload, agentSource) {
+                if (agentSource === "NANO") {
+                    if (GNM && GNM.aiSession) {
+                        GNM.sendSystemFeedback(JSON.stringify(payload, null, 4));
+                    }
+                } else if (agentSource === "WEB_BRIDGE") {
+                    if (window.opener && !window.opener.closed) {
+                        window.opener.postMessage(payload, "*");
+                    }
+                    if (window.parent !== window) {
+                        window.parent.postMessage(payload, "*");
+                    }
+                }
+            }
+
+            //-------------------------------------------------------- ### custom_system_prompt
             const custom_system_prompt = `
 #システムプロンプト 
 
@@ -4165,8 +4332,9 @@ sys.stderr = Web_Stdout()
 #システムプロンプト終了
 `;
 
-            // --------------- ### header_element
+            //-------------------------------------------------------- ### header_element
             const toggle_sidebar_button = document.getElementById("toggle_sidebar");
+            const toggle_ai_sidebar_button = document.getElementById("toggle_ai_sidebar");
             const drive_dir_button = document.getElementById("drive_dir");
             const input_file_button = document.getElementById("input_script_file");
             const download_html_button = document.getElementById("download_html");
@@ -4182,10 +4350,61 @@ sys.stderr = Web_Stdout()
             const serial_parity_element = document.getElementById("serial_parity");
             const serial_stop_bits_element = document.getElementById("serial_stop_bits");
 
-            // --------------- ### endpoint_white_list
+            //-------------------------------------------------------- ### AI Sidebar Resizer
+            const aiSidebarElement = document.getElementById("ai_sidebar");
+            const aiSidebarResizerVElement = document.getElementById("ai_sidebar_resizer_v");
+
+            //-------------------------------------------------------- ### endpoint_white_list
             const ALLOWED_POST_URLS = [];
 
-            //------------------------------------------------------------------------ ### button_enabled_disabled ###
+            //-------------------------------------------------------- ### ドラッグイベントを処理する共通関数
+            const attachDragHandler = (element, onDrag, onStart, onEnd) => {
+                if (!element) return;
+                const startDrag = (e) => {
+                    e.preventDefault();
+                    let startX = e.clientX;
+                    let startY = e.clientY;
+                    if (onStart) onStart();
+                    const onMouseMove = (moveEvent) => {
+                        const dx = moveEvent.clientX - startX;
+                        const dy = moveEvent.clientY - startY;
+                        if (onDrag) onDrag(dx, dy);
+                    };
+                    const onMouseUp = () => {
+                        document.removeEventListener("mousemove", onMouseMove);
+                        document.removeEventListener("mouseup", onMouseUp);
+                        if (onEnd) onEnd(); // ドラッグ終了時の処理を実行
+                    };
+                    document.addEventListener("mousemove", onMouseMove);
+                    document.addEventListener("mouseup", onMouseUp);
+                };
+                element.addEventListener("mousedown", startDrag);
+            };
+
+            // AIサイドバーの幅をリサイズする処理
+            let startAiSidebarWidth;
+            const ideFrameElement = document.getElementById("ide_container");
+
+            attachDragHandler(aiSidebarResizerVElement, (dx) => {
+                // 右側サイドバーは左方向へのドラッグ（dxがマイナス）で幅が広がるため減算する
+                const newWidth = startAiSidebarWidth - dx;
+                if (newWidth > 150) {
+                    aiSidebarElement.style.width = `${newWidth}px`;
+                }
+            }, () => {
+                startAiSidebarWidth = aiSidebarElement.offsetWidth;
+                // ドラッグ開始時: 高速ドラッグでマウスがiframeに入り込んでも追従が切れないようガードする
+                if (ideFrameElement) {
+                    ideFrameElement.style.pointerEvents = "none";
+                }
+            }, () => {
+                // ドラッグ終了時: iframeのポインタイベントを元の状態に戻す
+                if (ideFrameElement) {
+                    ideFrameElement.style.pointerEvents = "auto";
+                }
+            });
+
+            //-------------------------------------------------------- ### button_enabled_disabled ###
             const control_button_list = [
                 "toggle_sidebar",
                 "drive_dir",
@@ -4194,7 +4413,8 @@ sys.stderr = Web_Stdout()
                 "run_script",
                 "send_prompt",
                 "copy_token",
-                "serial_function"
+                "serial_function",
+                "toggle_ai_sidebar"
             ];
 
             function set_header_buttons_state(enabled) {
@@ -4237,7 +4457,7 @@ sys.stderr = Web_Stdout()
             set_header_buttons_state(false);
             set_stop_button_state(false);
 
-            //------------------------------------------------------------------------ ### initiarise_sandbox ###
+            //-------------------------------------------------------- ### initiarise_sandbox ###
             const frame = document.getElementById("ide_container");
             const loader = document.getElementById("loader");
             // 1. Textareaから生のソースコードを取得 (変数展開などは一切発生しない)
@@ -4265,7 +4485,7 @@ sys.stderr = Web_Stdout()
                 frame.style.display = "block";
             };
 
-            //------------------------------------------------------------------------ ### post_message_host_frame_to_ide_frame_クリック送信 ###
+            //-------------------------------------------------------- ### post_message_host_frame_to_ide_frame_クリック送信 ###
             toggle_sidebar_button.addEventListener("click", () => { // [≡]
                 frame.contentWindow.postMessage({ "cmd": "click", "req_id": 0, "obj": { "click": "toggle_sidebar_button" }, "args": [] }, "*");
             });
@@ -4285,8 +4505,11 @@ sys.stderr = Web_Stdout()
                 set_header_buttons_state(false);
                 frame.contentWindow.postMessage({ "cmd": "click", "req_id": 0, "obj": { "click": "run_script_button" }, "args": [] }, "*");
             });
+            toggle_ai_sidebar_button.addEventListener("click", () => { // [✧️]
+                document.body.classList.toggle("ai-sidebar-hidden");
+            });
 
-            //------------------------------------------------------------------------ ### send_prompt_button_event_listener ###
+            //-------------------------------------------------------- ### send_prompt_button_event_listener ###
             send_prompt_button.addEventListener("click", () => { // [◆]
                 // 1. ユーザー入力用ダイアログを表示
                 const user_input = window.prompt("Geminiへのプロンプトを入力してください:", "");
@@ -4328,7 +4551,7 @@ sys.stderr = Web_Stdout()
                 }
             });
 
-            //------------------------------------------------------------------------ ### copy_token_button_event_listener ###
+            //-------------------------------------------------------- ### copy_token_button_event_listener ###
             copy_token_button.addEventListener("click", () => {
                 navigator.clipboard.writeText(session_token).then(() => { // クリップボードに書き込み
                     alert("コピーしました : " + session_token); // 成功時の処理
@@ -4337,7 +4560,7 @@ sys.stderr = Web_Stdout()
                 });
             });
 
-            //------------------------------------------------------------------------ ### Web_Serial_API ###
+            //-------------------------------------------------------- ### Web_Serial_API ###
             serial_connect_button.addEventListener("click", async () => { // con
                 // ボーレートは必要に応じてUIから取得するか固定値
                 // 例: modbus_address_elementの値をボーレートとして使う等の運用も可能ですが、一旦固定
@@ -4516,8 +4739,459 @@ sys.stderr = Web_Stdout()
             // シリアルマネージャーのインスタンス化
             const SPM = new Serial_port_manager();
 
+            //-------------------------------------------------------- ### Gemini Nano Local Agent Management ###
+            const systemPromptText = `
+# システムプロンプト
+- 貴方はChromeブラウザに組み込まれた軽量ローカルLLMの Gemini nano
+  - コンテキストに限りがある為簡潔に動作してください
+  - 貴方は現在、Pyodide を用いた Python IDE ウェブアプリから呼び出されています
+## 目的
+- あなたはエージェンティックに動作し、ユーザーが与える目的を達成してください
+### 目的を達成するためのツール
+- 決まった json の仕様でコマンドを提示すれば、貴方はシステムを操作できます
+- Pyodide には「標準ライブラリ」と「micro pip」のみインストール済み
+  - 外部ライブラリは 「await micropip.install("numpy")」 の様にインストール命令をグローバル領域へ記述する事でインストールされます
+    - ライブラリのインストールはライブラリのインポート前に行ってください
+    - [numpy, scipy, pandas, scikit-learn, matplotlib] 等はインストール可能
+- 一気に複雑な推論や処理を行わず、チェーン・オブ・ソートで段階的に処理を進めてください
+##### 遵守事項
+- json コマンドは一回の応答に必ず一つまででとし、 json でコマンドを実行する場合はコマンド以外の余計な文章は不要です
+## 各種コマンドの json フォーマット 
+### Gemini からシステムへのスクリプト実行依頼 json フォーマット
+{
+  "cmd": "script_run_request",
+  "script": "Pythonスクリプトを記述"
+}
+### システムから Gemini ページへのスクリプト実行結果 json フォーマット
+{
+  "cmd": "script_result",
+  "result": "実行結果を記述"
+}
+### Gemini からシステムへの代理記憶依頼 json フォーマット
+{
+  "cmd": "add_memory",
+  "content":
+  [
+    {
+      "key_1": "value_1"
+    },
+    {
+      "key_2": "value_2"
+    }
+  ]
+}
+- 代理記憶する場合、ブックマークレットの代理記憶オブジェクトに新しいキーと値を追加します
+  - 重複キーの場合は値を上書きします
+#### システムの代理記憶オブジェクトは以下のような構造になります
+{
+  "cmd": "memory",
+  "content":
+  [
+    {
+      "key_1": "value_1"
+    },
+    {
+      "key_2": "value_2"
+    }
+  ]
+}
+### Gemini からシステムへの代理記憶提示依頼 json フォーマット
+{
+  "cmd": "memory_presentation"
+}
+### Gemini からユーザーへの検証依頼 json フォーマット 
+{
+  "cmd": "user_verification",
+  "message": "ユーザー検証内容"
+}
+### Gemini からユーザーへの目的達成 json フォーマット
+{
+  "cmd": "goal_achieved",
+  "message": "目的達成内容"
+}
+### システムからGeminiページへのコマンドjson多数検出通知フォーマット 
+{
+  "cmd": "Multiple_commands",
+  "message": "システム通知: 複数のコマンド（JSON）が検出されました。一度に実行できるコマンドは一つだけです。順次実行するか、一つに絞ってください。"
+}
+### システムからGeminiページへの規定フォーマットjson未検出通知フォーマット 
+{
+  "cmd": "No_Command",
+  "message": "出力の中にコマンドが発見できませんでした。意図したものであれば次のステップへ進んでください。意図したものでなければ修正してください。"
+};
+#システムプロンプト終了
+            `;
 
-            //------------------------------------------------------------------------ ### host_frame_post_message_汎用受信 ###
+            class GeminiNanoManager {
+                constructor() {
+                    this.aiSession = null;
+                    this.statusElement = document.getElementById("nano-status");
+                    this.chatContainer = document.getElementById("nano-chat-container");
+                    this.startBtn = document.getElementById("nano-start-btn");
+                    this.inputBox = document.getElementById("nano-chat-input-box");
+                    this.userInput = document.getElementById("nano-user-input");
+                    this.sendBtn = document.getElementById("nano-send-btn");
+                    this.resetBtn = document.getElementById("nano-reset-btn");
+                    this.agentToggle = document.getElementById("nano-agent-toggle");
+                    this.modeContainer = document.getElementById("nano-mode-container");
+                    this.systemPrompt = [systemPromptText, "# システムプロンプト\n- 貴方はChromeブラウザに組み込まれた軽量ローカルLLMの Gemini nano です\n  - コンテキストに限りがある為簡潔に動作してください\n# システムプロンプト終了"][1];
+                }
+
+                // UI要素にイベントリスナーを登録
+                initializeEvents() {
+                    if (!this.startBtn) return;
+                    this.startBtn.addEventListener("click", () => this.startLocalAI());
+
+                    if (this.resetBtn) {
+                        this.resetBtn.addEventListener("click", () => this.resetSession());
+                    }
+
+                    // 送信ボタンのクリックイベント
+                    this.sendBtn.addEventListener("click", () => this.handleSend());
+
+                    // テキストエリアでのEnterキー押下（Shift+Enterで改行）
+                    this.userInput.addEventListener("keydown", (e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            this.handleSend();
+                        }
+                    });
+                }
+
+                // ユーザーメッセージの送信処理およびAI応答のストリーミング制御
+                async handleSend() {
+                    const text = this.userInput.value.trim();
+                    if (!text || !this.aiSession) return;
+
+                    // ユーザーのメッセージを画面に追加し、入力をクリア
+                    this.appendMessage(text, "user");
+                    this.userInput.value = "";
+
+                    // AIの応答用プレースホルダーを生成
+                    const aiMsgDiv = this.appendMessage("...", "ai");
+
+                    // 応答中の二重送信を防ぐためUIをロック
+                    this.userInput.disabled = true;
+                    this.sendBtn.disabled = true;
+
+                    try {
+                        // ストリーミングプロンプトの実行
+                        const stream = this.aiSession.promptStreaming(text);
+                        
+                        // 最初のローディング表示「...」をクリア
+                        aiMsgDiv.textContent = "";
+                        
+                        // チャンクを受信するたびに順次画面へ反映
+                        for await (const chunk of stream) {
+                            aiMsgDiv.textContent += chunk;
+                            this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+                        }
+                        // ストリーミング完了後、エージェントループが有効な場合のみJSONコマンドを抽出して実行
+                        if (this.agentToggle && this.agentToggle.checked) {
+                            this.parseAndExecuteCommand(aiMsgDiv.textContent);
+                        } else {
+                            console.log("Gemini Nano: Dialogue mode active. Skipped command execution.");
+                        }
+                    } catch (error) {
+                        console.error("Gemini Nano Stream Error:", error);
+                        aiMsgDiv.textContent = "⚠️ エラーが発生しました。応答を生成できませんでした。";
+                        aiMsgDiv.style.color = "red";
+                    } finally {
+                        // UIのロックを解除してフォーカスを戻す
+                        this.userInput.disabled = false;
+                        this.sendBtn.disabled = false;
+                        this.userInput.focus();
+                    }
+                }
+
+                // チャット画面へのメッセージ追加ヘルパー
+                appendMessage(text, sender) {
+                    const msgDiv = document.createElement("div");
+                    
+                    // 送信者（ユーザー or AI）に応じたスタイル適用
+                    if (sender === "user") {
+                        msgDiv.style.backgroundColor = "#007acc";
+                        msgDiv.style.color = "white";
+                        msgDiv.style.alignSelf = "flex-end";
+                    } else {
+                        msgDiv.style.backgroundColor = "#333";
+                        msgDiv.style.color = "#ccc";
+                        msgDiv.style.alignSelf = "flex-start";
+                    }
+
+                    msgDiv.style.padding = "8px 12px";
+                    msgDiv.style.borderRadius = "4px";
+                    msgDiv.style.maxWidth = "85%";
+                    msgDiv.style.whiteSpace = "pre-wrap"; // 改行を維持
+                    msgDiv.style.wordBreak = "break-all"; // 長い英単語の折り返し
+                    
+                    msgDiv.textContent = text;
+                    this.chatContainer.appendChild(msgDiv);
+                    
+                    // 最下部へスクロール
+                    this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+                    
+                    return msgDiv;
+                }
+
+                // Local AI（Prompt API）の起動と初期化処理
+                async startLocalAI() {
+                    this.startBtn.disabled = true;
+                    this.startBtn.innerText = "🔄 初期化処理中...";
+
+                    // 各種 Prompt API のファクトリチェック
+                    const aiAPI = window.LanguageModel || 
+                                  (window.ai && window.ai.languageModel) || 
+                                  (window.ai && window.ai.assistant);
+
+                    if (!aiAPI) {
+                        this.updateStatus("❌ 利用不可", "red");
+                        this.startBtn.innerText = "起動失敗 (Prompt API 無効)";
+                        return;
+                    }
+
+                    try {
+                        this.updateStatus("🔄 セッション作成中...", "orange");
+
+                        // ダウンロードプログレスモニターを試みる
+                        const sessionOptions = {
+                            systemPrompt: this.systemPrompt
+                        };
+                        try {
+                            this.aiSession = await aiAPI.create({
+                                ...sessionOptions,
+                                monitor: (m) => {
+                                    m.addEventListener("downloadprogress", (e) => {
+                                        const progress = Math.round((e.loaded / e.total) * 100);
+                                        this.updateStatus(`🔄 DL中... ${progress}%`, "orange");
+                                    });
+                                }
+                            });
+                        } catch (e) {
+                            // モニター非対応環境用のフォールバック
+                            this.aiSession = await aiAPI.create(sessionOptions);
+                        }
+
+                        // 初期化成功時のUI切り替え
+                        this.updateStatus("🟢 準備完了", "green");
+                        this.startBtn.style.display = "none";
+                        this.modeContainer.style.display = "flex";
+                        this.inputBox.style.display = "flex";
+                        this.sendBtn.disabled = false;
+                        this.userInput.focus();
+
+                    } catch (error) {
+                        console.error("Gemini Nano Init Error:", error);
+                        this.updateStatus("❌ 起動失敗", "red");
+                        this.startBtn.disabled = false;
+                        this.startBtn.innerText = "🟢 もう一度起動を試みる";
+                        alert(`セッション作成に失敗しました。\nchrome://components で Optimization Guide が「New」になっているか確認してください。`);
+                    }
+                }
+
+                // セッションおよびチャット表示のリセット処理
+                async resetSession() {
+                    const confirmReset = confirm("セッションをリセットして、チャット履歴を消去しますか？");
+                    if (!confirmReset) return;
+
+                    // 既存のAIセッションが構築されていれば明示的に破棄
+                    if (this.aiSession) {
+                        try {
+                            if (typeof this.aiSession.destroy === "function") {
+                                this.aiSession.destroy();
+                            }
+                        } catch (error) {
+                            console.warn("Gemini Nano: Failed to destroy session", error);
+                        }
+                        this.aiSession = null;
+                    }
+
+                    // チャットコンテナを初期状態（案内メッセージのみ）にクリア
+                    if (this.chatContainer) {
+                        this.chatContainer.innerHTML = `
+                            <div style="background-color: #333; padding: 8px 12px; border-radius: 4px; align-self: flex-start; max-width: 85%; color: #ccc;">
+                                こんにちは！ローカル環境の Gemini Nano エージェントです。下のボタンからAIを起動してください。
+                            </div>
+                        `;
+                    }
+
+                    // 各種UI要素の状態を初期（未起動時）の状態へ巻き戻す
+                    this.updateStatus("未起動", "#aaa");
+                    if (this.startBtn) {
+                        this.startBtn.style.display = "block";
+                        this.startBtn.disabled = false;
+                        this.startBtn.innerText = "🟢 AIを起動する";
+                    }
+                    if (this.modeContainer) {
+                        this.modeContainer.style.display = "none";
+                    }
+                    if (this.agentToggle) {
+                        this.agentToggle.checked = true; // デフォルト状態(有効)に戻す
+                    }
+                    if (this.inputBox) {
+                        this.inputBox.style.display = "none";
+                    }
+                    if (this.userInput) {
+                        this.userInput.value = "";
+                        this.userInput.disabled = false;
+                    }
+                    if (this.sendBtn) {
+                        this.sendBtn.disabled = true;
+                    }
+
+                    // 文脈のリセットに伴い、エージェント用の代理記憶オブジェクトもクリア
+                    window.agent_memory = {};
+                    console.log("Gemini Nano: Session and chat history have been reset.");
+                }
+
+                // ステータス表示の更新ヘルパー
+                updateStatus(text, color) {
+                    if (this.statusElement) {
+                        this.statusElement.innerText = text;
+                        this.statusElement.style.color = color;
+                    }
+                }
+
+                // AIの出力テキストからJSONオブジェクトを抽出するヘルパー関数
+                extractJsonObjects(text) {
+                    const results = [];
+                    let braceStack = 0;
+                    let startIndex = null;
+                    let inString = false;
+                    let isEscaped = false;
+
+                    for (let i = 0; i < text.length; i++) {
+                        const char = text[i];
+                        if (inString) {
+                            if (isEscaped) {
+                                isEscaped = false;
+                            } else if (char === "\\\\") {
+                                isEscaped = true;
+                            } else if (char === '"') {
+                                inString = false;
+                            }
+                        } else {
+                            if (char === '"') {
+                                inString = true;
+                            } else if (char === "{") {
+                                if (braceStack === 0) {
+                                    startIndex = i;
+                                }
+                                braceStack++;
+                            } else if (char === "}") {
+                                if (braceStack > 0) {
+                                    braceStack--;
+                                    if (braceStack === 0 && startIndex !== null) {
+                                        const potentialJson = text.substring(startIndex, i + 1);
+                                        try {
+                                            JSON.parse(potentialJson);
+                                            results.push(potentialJson);
+                                        } catch (e) {
+                                            console.warn("Gemini Nano: Invalid JSON block skipped");
+                                        }
+                                        startIndex = null;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    return results;
+                }
+
+                // 抽出したコマンドを解析し、適切なシステム処理を実行するメソッド
+                parseAndExecuteCommand(text) {
+                    const jsonCandidates = this.extractJsonObjects(text);
+
+                    if (jsonCandidates.length === 0) {
+                        // コマンド未検出時のフィードバック通知
+                        const noCommandPayload = {
+                            "cmd": "No_Command",
+                            "message": "出力の中にコマンドが発見できませんでした。意図したものであれば次のステップへ進んでください。意図したものでなければ修正してください。"
+                        };
+                        this.sendSystemFeedback(JSON.stringify(noCommandPayload, null, 4));
+                        return;
+                    }
+
+                    if (jsonCandidates.length > 1) {
+                        // 複数コマンド検出時の警告通知
+                        const multipleCommandsPayload = {
+                            "cmd": "Multiple_commands",
+                            "message": "システム通知: 複数のコマンド（JSON）が検出されました。一度に実行できるコマンドは一つだけです。順次実行するか、一つに絞ってください。"
+                        };
+                        this.sendSystemFeedback(JSON.stringify(multipleCommandsPayload, null, 4));
+                        return;
+                    }
+
+                    try {
+                        const commandData = JSON.parse(jsonCandidates[0]);
+                        console.log("Gemini Nano Executing Command:", commandData);
+
+                        if (commandData.cmd === "script_run_request" && commandData.script) {
+                            // Pythonスクリプトの実行要求をSandbox（iframe）へ転送
+                            const ideFrame = document.getElementById("ide_container");
+                            if (ideFrame && ideFrame.contentWindow) {
+                                ideFrame.contentWindow.postMessage({ "cmd": "agent_run", "code": commandData.script }, "*");
+                            }
+                        } else if (commandData.cmd === "add_memory" && commandData.content) {
+                            // 代理記憶の更新処理
+                            window.agent_memory = window.agent_memory || {};
+                            if (Array.isArray(commandData.content)) {
+                                commandData.content.forEach(item => {
+                                    Object.assign(window.agent_memory, item);
+                                });
+                            }
+                            const responsePayload = { "cmd": "Memorization_complete" };
+                            this.sendSystemFeedback(JSON.stringify(responsePayload, null, 4));
+                        } else if (commandData.cmd === "memory_presentation") {
+                            // 代理記憶の提示
+                            const responsePayload = { "cmd": "memory", "content": JSON.stringify(window.agent_memory || {}, null, 4) };
+                            this.sendSystemFeedback(JSON.stringify(responsePayload, null, 4));
+                        } else if (commandData.cmd === "user_verification" && commandData.message) {
+                            // ユーザーへの検証依頼（ブラウザ通知など）
+                            alert("ユーザー検証依頼:\n" + commandData.message);
+                        } else if (commandData.cmd === "goal_achieved" && commandData.message) {
+                            // 目的達成通知
+                            alert("目的達成:\n" + commandData.message);
+                        }
+                    } catch (error) {
+                        console.error("Command execution error:", error);
+                    }
+                }
+
+                // システムの動作結果（フィードバック）をAIに自動送信して自律ループを回すメソッド
+                async sendSystemFeedback(feedbackText) {
+                    if (!this.aiSession) return;
+
+                    // システム出力をUI（チャットサイドバー）に反映
+                    const aiMsgDiv = this.appendMessage("...", "ai");
+                    this.userInput.disabled = true;
+                    this.sendBtn.disabled = true;
+
+                    try {
+                        const stream = this.aiSession.promptStreaming(feedbackText);
+                        aiMsgDiv.textContent = "";
+                        for await (const chunk of stream) {
+                            aiMsgDiv.textContent += chunk;
+                            this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+                        }
+                        // ループを継続するために、新たな出力に対して再度コマンド解析を実行
+                        this.parseAndExecuteCommand(aiMsgDiv.textContent);
+                    } catch (error) {
+                        console.error("Gemini Nano Loop Stream Error:", error);
+                        aiMsgDiv.textContent = "⚠️ エラーが発生しました。ループを維持できませんでした。";
+                        aiMsgDiv.style.color = "red";
+                    } finally {
+                        this.userInput.disabled = false;
+                        this.sendBtn.disabled = false;
+                    }
+                }
+            }
+
+            // ページロード完了時に Gemini Nano マネージャーをインスタンス化して起動
+            const GNM = new GeminiNanoManager();
+            GNM.initializeEvents();
+
+            //-------------------------------------------------------- ### host_frame_post_message_汎用受信 ###
             window.addEventListener("message", async (event) => {
 
                 // iframe要素(ide_container)のcontentWindowと、メッセージ送信元が一致するか検証
@@ -4588,7 +5262,7 @@ sys.stderr = Web_Stdout()
                 })();
                 console.log("# get_post_message #", data);
 
-                // --------------- ### Agent_Script_Request (Geminiからの実行要求)
+                //-------------------------------------------------------- ### Agent_Script_Request (Geminiからの実行要求)
                 if (data.cmd === "script_run_request" && data.script) {
                     // 実行要求されたコードをSandboxへ転送して実行させる
                     // cmd: "agent_run" を新規定義してSandboxへ送る
@@ -4597,17 +5271,21 @@ sys.stderr = Web_Stdout()
                     return;
                 }
 
-                // --------------- ### スクリプト実行完了信号受信
+                //-------------------------------------------------------- ### スクリプト実行完了信号受信
                 if (data && data.cmd === "script_complete") {
                     console.log("# host_frame_log : script_complete")
                     set_header_buttons_state(true);
                     set_stop_button_state(true);
-                    // --------------- ### Return_Result_to_Gemini
+                    //-------------------------------------------------------- ### Return_Result_to_Gemini
                     if (data.obj.log) {
                         const response_payload = {
                             "cmd": "script_result",
                             "result": data.obj.log
                         };
+                        // ローカルエージェント（Gemini Nano）が有効な場合、自動で実行結果をフィードバックして自律駆動させる
+                        if (GNM && GNM.aiSession) {
+                            GNM.sendSystemFeedback(JSON.stringify(response_payload, null, 4));
+                        }
                         if (window.opener && !window.opener.closed) {
                             // ブックマークレットへの Post Message 処理
                             window.opener.postMessage(response_payload, "*");
@@ -4620,7 +5298,7 @@ sys.stderr = Web_Stdout()
                     return;
                 }
 
-                // --------------- ### Agent_Memory_Request (Geminiからの代理記憶依頼)
+                //-------------------------------------------------------- ### Agent_Memory_Request (Geminiからの代理記憶依頼)
                 if (data.cmd === "add_memory" && data.content) {
                     console.log("# host_frame_log : add_memory :", data.content);
 
@@ -4646,7 +5324,7 @@ sys.stderr = Web_Stdout()
                     return;
                 }
 
-                // --------------- ### Agent_Memory_Request (Geminiからの代理記憶提示依頼)
+                //-------------------------------------------------------- ### Agent_Memory_Request (Geminiからの代理記憶提示依頼)
                 if (data.cmd === "memory_presentation") {
                     console.log("# host_frame_log : memory_presentation");
                     const response_payload = { "cmd": "memory", "content": JSON.stringify(window.agent_memory, null, 4) };
@@ -4661,7 +5339,7 @@ sys.stderr = Web_Stdout()
                     return;
                 }
 
-                // --------------- ### Agent_User_Verification (ユーザー確認)
+                //-------------------------------------------------------- ### Agent_User_Verification (ユーザー確認)
                 if (data.cmd === "user_verification" && data.message) {
                     console.log("# host_frame_log : " + data.cmd, data.message);
                     const response_payload = { "cmd": "Notification_completed", "message": data.message };
@@ -4676,7 +5354,7 @@ sys.stderr = Web_Stdout()
                     return;
                 }
 
-                // --------------- ### Agent_Goal_Achieved (タスク完了通知)
+                //-------------------------------------------------------- ### Agent_Goal_Achieved (タスク完了通知)
                 if (data.cmd === "goal_achieved" && data.message) {
                     console.log("# host_frame_log : " + data.cmd, data.message);
                     const response_payload = { "cmd": "goal_achieved", "message": data.message };
@@ -4691,7 +5369,7 @@ sys.stderr = Web_Stdout()
                     return;
                 }
 
-                // --------------- ### Agent_Error: Multiple Commands (複数コマンド検出時の警告)
+                //-------------------------------------------------------- ### Agent_Error: Multiple Commands (複数コマンド検出時の警告)
                 if (data.cmd === "multiple_commands" && data.message) {
                     console.warn("Multiple_commands_detected:", data.message);
                     const response_payload = { "cmd": "Multiple_commands", "message": data.message };
@@ -4706,7 +5384,7 @@ sys.stderr = Web_Stdout()
                     return;
                 }
 
-                // --------------- ### Agent_No_Commands (該当コマンド無し)
+                //-------------------------------------------------------- ### Agent_No_Commands (該当コマンド無し)
                 if (data.cmd === "No_Command" && data.message) {
                     console.warn("No_Command:", data.message);
                     const response_payload = { "cmd": "No_Command", "message": data.message };
@@ -4721,7 +5399,7 @@ sys.stderr = Web_Stdout()
                     return;
                 }
 
-                // --------------- ### シリアル通信依頼受信
+                //-------------------------------------------------------- ### シリアル通信依頼受信
                 if (data && data.cmd === "serial_write") {
                     const req_id = data.req_id;
                     const sub_cmd = data.obj.sub_cmd; // "connect", "write", "disconnect"
@@ -4749,7 +5427,7 @@ sys.stderr = Web_Stdout()
                     return; // 処理終了
                 }
 
-                // --------------- ### Fetch API (POST) 依頼受信
+                //-------------------------------------------------------- ### Fetch API (POST) 依頼受信
                 if (data && data.cmd === "fetch_post") {
                     console.log("# host_flame_fetch_post #")
                     console.log(data)
