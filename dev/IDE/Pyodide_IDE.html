@@ -4834,7 +4834,7 @@ sys.stderr = Web_Stdout()
                     this.resetBtn = document.getElementById("nano-reset-btn");
                     this.agentToggle = document.getElementById("nano-agent-toggle");
                     this.modeContainer = document.getElementById("nano-mode-container");
-                    this.systemPrompt = [systemPromptText, "# システムプロンプト\n- 貴方はChromeブラウザに組み込まれた軽量ローカルLLMの Gemini nano です\n  - コンテキストに限りがある為簡潔に動作してください\n# システムプロンプト終了"][1];
+                    this.systemPrompt = [systemPromptText, "# システムプロンプト\n- 貴方はChromeブラウザに組み込まれた軽量ローカルLLMの Gemini nano です\n  - コンテキストに限りがある為簡潔に動作してください\n# システムプロンプト終了"][0];
                 }
 
                 // UI要素にイベントリスナーを登録
@@ -4954,8 +4954,11 @@ sys.stderr = Web_Stdout()
                         this.updateStatus("🔄 セッション作成中...", "orange");
 
                         // ダウンロードプログレスモニターを試みる
+                        // 最新のAPI仕様に基づき、initialPrompts配列内にオブジェクト形式でシステムプロンプトを内包
                         const sessionOptions = {
-                            systemPrompt: this.systemPrompt
+                            initialPrompts: [
+                                { role: "system", content: this.systemPrompt }
+                            ]
                         };
                         try {
                             this.aiSession = await aiAPI.create({
