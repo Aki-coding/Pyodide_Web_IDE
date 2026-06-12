@@ -375,11 +375,6 @@
         </div>
     </div>
 
-    <iframe id="ide_container"
-        sandbox="allow-scripts allow-modals allow-downloads allow-forms allow-popups allow-presentation"
-        allow="clipboard-read; clipboard-write; serial; file-system-read; file-system-write;"
-        style="display: none;"></iframe>
-
     <!-- ################################################# ↓↓↓ SandBoxFrame ↓↓↓ ################################################# -->
 
     <textarea id="sandbox_source" style="display:none;">
@@ -1287,7 +1282,7 @@ await main_async_def()
                         pending_host_requests[req_id] = { resolve, reject };
                     }
                     // host_frameウィンドウへメッセージ送信
-                    post_message_data = { "cmd": cmd, "req_id": req_id, "obj": obj, "args": args }
+                    const post_message_data = { "cmd": cmd, "req_id": req_id, "obj": obj, "args": args }
                     window.parent.postMessage(post_message_data, origin);
 
                 } else if (target == "preview") { // preview_frame に post_message
@@ -3791,6 +3786,119 @@ def apply_auto_sleep(source_code):
 	except Exception as e:
 		return f"# Parse Error: {e}"
 
+def apply_auto_install(sourceCode):
+    import ast
+    import sys
+
+    # インポート名とPyodideパッケージ名が異なる場合の個別マッピング
+    importToPackage = {
+        "sklearn": "scikit-learn",
+        "cv2": "opencv-python",
+        "bs4": "beautifulsoup4",
+        "yaml": "pyyaml",
+        "PIL": "Pillow",
+        "skimage": "scikit-image",
+        "fitz": "PyMuPDF",
+        "pygame": "pygame-ce",
+        "dateutil": "python-dateutil"
+    }
+
+    # CSVから網羅したPyodide提供パッケージの全リスト
+    rawPackages = """
+    affine aiohappyeyeballs aiohttp aiosignal altair annotated-doc annotated-types anyio apsw
+    argon2-cffi argon2-cffi-bindings astropy astropy_iers_data asttokens async-timeout atomicwrites
+    attrs audioop-lts awkward-cpp b2d bcrypt beautifulsoup4 bilby.cython biopython bitarray
+    bitstring bleach blosc2 bokeh boost-histogram Bottleneck brotli cachetools Cartopy casadi
+    cbor-diag certifi cffi cffi_example cftime charset-normalizer clarabel click cligj clingo
+    cloudpickle cmyt cobs colorspacious contourpy coolprop coverage crc32c crcmod cryptography
+    cssselect cvxpy-base cycler cysignals cytoolz decorator demes deprecated deprecation
+    diskcache distlib distro dnspython docutils donfig duckdb ewah_bool_utils exceptiongroup
+    executing fastapi fastcan fiona fonttools freesasa frozenlist fsspec future galpy geopandas
+    gmpy2 google-crc32c gsw h11 h3 h5py highspy html5lib httpcore httpx idna igraph imageio
+    iminuit iniconfig ipython jedi Jinja2 jiter joblib jsonpatch jsonpointer jsonschema
+    jsonschema_specifications kiwisolver lakers-python lazy_loader lazy-object-proxy libcst librt
+    lightgbm logbook lxml lz4 MarkupSafe matplotlib matplotlib-inline memory-allocator micropip
+    ml_dtypes mmh3 more-itertools mpmath msgpack msgspec msprime multidict munch mypy narwhals
+    ndindex netcdf4 networkx newick nh3 nlopt nltk numcodecs numpy openai opencv-python optlang
+    orjson packaging pandas parso patsy pcodec peewee phispy pi-heif Pillow pillow-heif
+    pkgconfig platformdirs pluggy ply polars prompt_toolkit propcache protobuf pure-eval py
+    pyarrow pyclipper pycparser pycryptodome pydantic pydantic_core pydoc_data pyerfa pygame-ce
+    Pygments pyheif pyiceberg pyinstrument pymongo PyMuPDF pynacl pyodide-http pyodide-unix-timezones
+    pyparsing pyproj pyroaring pyrodigal pyrsistent pysam pyshp pytaglib pytest pytest-asyncio
+    pytest-benchmark pytest_httpx python-calamine python-dateutil python-flint python-flirt
+    python-sat python-solvespace pytz pywavelets pyxirr pyyaml rasterio rateslib rebound reboundx
+    referencing regex requests retrying rich RobotRaconteur rpds-py ruamel.yaml safetensors
+    scikit-image scikit-learn scipy screed sentencepiece setuptools shapely simplejson sisl
+    six smart-open sniffio sortedcontainers soundfile soupsieve sourmash soxr sparseqr sqlalchemy
+    stack-data starlette statsmodels strictyaml svgwrite swiglpk sympy tblib termcolor texttable
+    texture2ddecoder threadpoolctl tiktoken tomli tomli-w toolz tqdm traitlets traits tree-sitter
+    tree-sitter-go tree-sitter-java tree-sitter-python tskit typing-extensions typing-inspection
+    tzdata ujson uncertainties unyt urllib3 vega-datasets vrplib wcwidth webencodings wordcloud
+    wrapt xarray xgboost xlrd xxhash xyzservices yarl yt zarr zengl zfpy zstandard
+    """
+    validPackages = set(rawPackages.split())
+
+    # Python環境の標準ライブラリおよび組み込みモジュールのセットを取得して安全に除外
+    stdlibModules = getattr(sys, "stdlib_module_names", set()).union(sys.builtin_module_names).union({"js", "pyodide", "pyodide_js", "micropip"})
+
+    try:
+        tree = ast.parse(sourceCode)
+        detectedPackages = set()
+        unknownModules = set()
+
+        def evaluateModule(moduleName):
+            if not moduleName:
+                return
+            rootModule = moduleName.split('.')[0]
+            
+            # 1. 標準ライブラリ/組み込みは判定から除外
+            if rootModule in stdlibModules:
+                return
+                
+            # 2. 個別マッピング（異名）に存在する場合
+            if rootModule in importToPackage:
+                detectedPackages.add(importToPackage[rootModule])
+                return
+            
+            # 3. リスト内走査（アンダースコアをハイフンに直したパッケージ名も自動判定）
+            hyphenatedName = rootModule.replace('_', '-')
+            if rootModule in validPackages:
+                detectedPackages.add(rootModule)
+            elif hyphenatedName in validPackages:
+                detectedPackages.add(hyphenatedName)
+            else:
+                # いずれにも該当しない場合は未登録外部ライブラリとしてマーク
+                unknownModules.add(rootModule)
+
+        # 構文木からインポート宣言をすべて抽出
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    evaluateModule(alias.name)
+            elif isinstance(node, ast.ImportFrom):
+                evaluateModule(node.module)
+
+        # 未登録かつ非標準のライブラリが検出された場合、JavaScriptの確認ダイアログを表示
+        if unknownModules:
+            import js
+            for mod in sorted(unknownModules):
+                isConfirmed = js.confirm(f"未登録の外部ライブラリ '{mod}' が検出されました。\\nPyPI から直接ダウンロードしてインストールを試みますか？")
+                if isConfirmed:
+                    detectedPackages.add(mod)
+
+        if not detectedPackages:
+            return sourceCode
+
+        # 最冒層に自動インストール用のコードを構築
+        installLines = ["import micropip"]
+        for pkg in sorted(detectedPackages):
+            installLines.append(f"await micropip.install('{pkg}')")
+
+        return "\\n".join(installLines) + "\\n" + sourceCode
+
+    except Exception as e:
+        return f"# Auto Install Parse Error: {e}\\n" + sourceCode
+
 # --- 1) Matplotlib show injection function ---
 def _inject_matplotlib_show():
 	import matplotlib
@@ -3896,17 +4004,22 @@ if os.path.exists("${MOUNT_PATH}"):
 
                     // Python側の変換関数を呼び出す
                     const transformer = pyodide_js.globals.get("apply_auto_sleep");
-                    const transformed_code = transformer(code);
+                    let transformedCode = transformer(code);
                     transformer.destroy(); // メモリ解放
 
+                    // 自動ライブラリインストール処理を適用
+                    const installTransformer = pyodide_js.globals.get("apply_auto_install");
+                    transformedCode = installTransformer(transformedCode);
+                    installTransformer.destroy(); // メモリ解放
+
                     // 変換エラーのチェック（構文エラーがある場合は変換に失敗する）
-                    if (transformed_code.startsWith("# Parse Error")) {
-                        console.warn("Auto-injection failed, running original code. Error:", transformed_code);
+                    if (transformedCode.startsWith("# Parse Error") || transformedCode.startsWith("# Auto Install Parse Error")) {
+                        console.warn("Auto-injection failed, running original code. Error:", transformedCode);
                         // 変換失敗時は元のコードを実行（ユーザーに構文エラーを表示させるため）
                     } else {
                         // デバッグ用: 変換後のコードを確認したい場合
-                        // console.log(transformed_code);
-                        code = transformed_code;
+                        // console.log(transformedCode);
+                        code = transformedCode;
                     }
 
                     const stdout_redirect_code = `
@@ -4740,7 +4853,8 @@ sys.stderr = Web_Stdout()
             const SPM = new Serial_port_manager();
 
             //-------------------------------------------------------- ### Gemini Nano Local Agent Management ###
-            const systemPromptText = `
+            const systemPromptText = {
+                "codingAgent": `
 # システムプロンプト
 - 貴方はChromeブラウザに組み込まれた軽量ローカルLLMの Gemini nano
   - コンテキストに限りがある為簡潔に動作してください
@@ -4748,11 +4862,9 @@ sys.stderr = Web_Stdout()
 ## 目的
 - あなたはエージェンティックに動作し、ユーザーが与える目的を達成してください
 ### 目的を達成するためのツール
-- 決まった json の仕様でコマンドを提示すれば、貴方はシステムを操作できます
-- Pyodide には「標準ライブラリ」と「micro pip」のみインストール済み
-  - 外部ライブラリは 「await micropip.install("numpy")」 の様にインストール命令をグローバル領域へ記述する事でインストールされます
-    - ライブラリのインストールはライブラリのインポート前に行ってください
-    - [numpy, scipy, pandas, scikit-learn, matplotlib] 等はインストール可能
+- 規定の json フォーマットでコマンドを提示すれば、貴方はシステムを操作できます
+- Pyodide には 「標準ライブラリ」と「micro pip」のみインストール済み
+  - 外部ライブラリは Pyodide に対応している物のみ利用可能で、対応ライブラリの使用をコード中に検出するとシステムが自動インストールします
 - 一気に複雑な推論や処理を行わず、チェーン・オブ・ソートで段階的に処理を進めてください
 ##### 遵守事項
 - json コマンドは一回の応答に必ず一つまででとし、 json でコマンドを実行する場合はコマンド以外の余計な文章は不要です
@@ -4817,10 +4929,14 @@ sys.stderr = Web_Stdout()
 ### システムからGeminiページへの規定フォーマットjson未検出通知フォーマット 
 {
   "cmd": "No_Command",
-  "message": "出力の中にコマンドが発見できませんでした。意図したものであれば次のステップへ進んでください。意図したものでなければ修正してください。"
+  "message": "出力の中にコマンドが発見できませんでした。意図したものであれば次のステップへ進んでください。意図したものでなければ修正してください。目的が達成されたのであれば「{"cmd": "goal_achieved", "message": "目的達成内容"}」コマンドで終了してください。"
 };
 #システムプロンプト終了
-            `;
+            `,
+            
+            "simple": `
+# システムプロンプト\n- 貴方はChromeブラウザに組み込まれた軽量ローカルLLMの Gemini nano です\n  - コンテキストに限りがある為簡潔に動作してください\n# システムプロンプト終了
+            `};
 
             class GeminiNanoManager {
                 constructor() {
@@ -4834,7 +4950,7 @@ sys.stderr = Web_Stdout()
                     this.resetBtn = document.getElementById("nano-reset-btn");
                     this.agentToggle = document.getElementById("nano-agent-toggle");
                     this.modeContainer = document.getElementById("nano-mode-container");
-                    this.systemPrompt = [systemPromptText, "# システムプロンプト\n- 貴方はChromeブラウザに組み込まれた軽量ローカルLLMの Gemini nano です\n  - コンテキストに限りがある為簡潔に動作してください\n# システムプロンプト終了"][0];
+                    this.systemPrompt = systemPromptText["codingAgent"];
                 }
 
                 // UI要素にイベントリスナーを登録
@@ -4913,6 +5029,11 @@ sys.stderr = Web_Stdout()
                         msgDiv.style.backgroundColor = "#007acc";
                         msgDiv.style.color = "white";
                         msgDiv.style.alignSelf = "flex-end";
+                    } else if (sender === "system") {
+                        msgDiv.style.backgroundColor = "#444444";
+                        msgDiv.style.color = "#e0e0e0";
+                        msgDiv.style.alignSelf = "flex-start";
+                        msgDiv.style.borderLeft = "4px solid #28a745"; // システムからの応答と識別しやすくするための左線
                     } else {
                         msgDiv.style.backgroundColor = "#333";
                         msgDiv.style.color = "#ccc";
@@ -5068,7 +5189,7 @@ sys.stderr = Web_Stdout()
                         if (inString) {
                             if (isEscaped) {
                                 isEscaped = false;
-                            } else if (char === "\\\\") {
+                            } else if (char === "\\") {
                                 isEscaped = true;
                             } else if (char === '"') {
                                 inString = false;
@@ -5109,7 +5230,7 @@ sys.stderr = Web_Stdout()
                         // コマンド未検出時のフィードバック通知
                         const noCommandPayload = {
                             "cmd": "No_Command",
-                            "message": "出力の中にコマンドが発見できませんでした。意図したものであれば次のステップへ進んでください。意図したものでなければ修正してください。"
+                            "message": `出力の中にコマンドが発見できませんでした。意図したものであれば次のステップへ進んでください。意図したものでなければ修正してください。目的が達成されたのであれば「{"cmd": "goal_achieved", "message": "目的達成内容"}」コマンドで終了してください。`
                         };
                         this.sendSystemFeedback(JSON.stringify(noCommandPayload, null, 4));
                         return;
@@ -5165,8 +5286,12 @@ sys.stderr = Web_Stdout()
                 async sendSystemFeedback(feedbackText) {
                     if (!this.aiSession) return;
 
-                    // システム出力をUI（チャットサイドバー）に反映
+                    // システムからのフィードバック内容（応答）をチャット欄に表示
+                    this.appendMessage(feedbackText, "system");
+
+                    // AI出力用のプレースホルダーをUI（チャットサイドバー）に反映
                     const aiMsgDiv = this.appendMessage("...", "ai");
+
                     this.userInput.disabled = true;
                     this.sendBtn.disabled = true;
 
@@ -5256,7 +5381,7 @@ sys.stderr = Web_Stdout()
                         // 該当しない場合は元のイベントデータ(textなど)を返す、あるいは無視する
                         return {
                             "cmd": "No_Command",
-                            "message": "出力の中にコマンドが発見できませんでした。意図したものであれば次のステップへ進んでください。意図したものでなければ修正してください。"
+                            "message": `出力の中にコマンドが発見できませんでした。意図したものであれば次のステップへ進んでください。意図したものでなければ修正してください。目的が達成されたのであれば「{"cmd": "goal_achieved", "message": "目的達成内容"}」コマンドで終了してください。`
                         };
 
                     } else {
