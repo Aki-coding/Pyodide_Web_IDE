@@ -356,7 +356,10 @@
             </div>
             <div id="nano-chat-container" style="flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 10px; font-size: 10pt;">
                 <div style="background-color: #333; padding: 8px 12px; border-radius: 4px; align-self: flex-start; max-width: 85%; color: #ccc;">
-                    Hello! This is the Gemini Nano agent in your local environment. Please start the AI ​​using the button below.
+                    You can launch Gemini nano and chat using the button below.
+                </div>
+                <div style="background-color: #333; padding: 8px 12px; border-radius: 4px; align-self: flex-start; max-width: 85%; color: #ccc;">
+                    下のボタンから Gemini nano を起動し、チャット出来ます
                 </div>
             </div>
             <div id="nano-input-container" style="padding: 10px; border-top: 1px solid #333; background-color: #1e1e1e; display: flex; flex-direction: column; gap: 8px;">
@@ -4950,6 +4953,8 @@ sys.stderr = Web_Stdout()
                     this.resetBtn = document.getElementById("nano-reset-btn");
                     this.agentToggle = document.getElementById("nano-agent-toggle");
                     this.modeContainer = document.getElementById("nano-mode-container");
+                    this.abortController = null; // 中断制御用のコントローラー
+                    this.isGenerating = false; // 現在AIが応答生成中かどうかのフラグ
                     this.systemPrompt = systemPromptText["codingAgent"];
                 }
 
@@ -4963,7 +4968,13 @@ sys.stderr = Web_Stdout()
                     }
 
                     // 送信ボタンのクリックイベント
-                    this.sendBtn.addEventListener("click", () => this.handleSend());
+                    this.sendBtn.addEventListener("click", () => {
+                        if (this.isGenerating) {
+                            this.handleAbort(); // 生成中の場合は中断処理を実行
+                        } else {
+                            this.handleSend();  // 通常時は送信処理を実行
+                        }
+                    });
 
                     // テキストエリアでのEnterキー押下（Shift+Enterで改行）
                     this.userInput.addEventListener("keydown", (e) => {
@@ -4972,6 +4983,14 @@ sys.stderr = Web_Stdout()
                             this.handleSend();
                         }
                     });
+                }
+
+                // AIの応答生成を強制中断する処理
+                handleAbort() {
+                    if (this.abortController) {
+                        this.abortController.abort(); // 中断シグナルを発火
+                        console.log("[Gemini Nano] Generation aborted by user.");
+                    }
                 }
 
                 // ユーザーメッセージの送信処理およびAI応答のストリーミング制御
@@ -4986,13 +5005,18 @@ sys.stderr = Web_Stdout()
                     // AIの応答用プレースホルダーを生成
                     const aiMsgDiv = this.appendMessage("...", "ai");
 
-                    // 応答中の二重送信を防ぐためUIをロック
+                    // 応答中の状態を設定し、UIを「中断」モードへ切り替える
+                    this.isGenerating = true;
+                    this.abortController = new AbortController();
+                    
                     this.userInput.disabled = true;
-                    this.sendBtn.disabled = true;
+                    this.sendBtn.textContent = "中断";
+                    this.sendBtn.style.backgroundColor = "#d9534f"; // 警告カラー（赤）に変更
+                    this.sendBtn.disabled = false;
 
                     try {
-                        // ストリーミングプロンプトの実行
-                        const stream = this.aiSession.promptStreaming(text);
+                        // ストリーミングプロンプトの実行（AbortSignalをオプションで渡す）
+                        const stream = this.aiSession.promptStreaming(text, { signal: this.abortController.signal });
                         
                         // 最初のローディング表示「...」をクリア
                         aiMsgDiv.textContent = "";
@@ -5002,19 +5026,26 @@ sys.stderr = Web_Stdout()
                             aiMsgDiv.textContent += chunk;
                             this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
                         }
-                        // ストリーミング完了後、エージェントループが有効な場合のみJSONコマンドを抽出して実行
-                        if (this.agentToggle && this.agentToggle.checked) {
-                            this.parseAndExecuteCommand(aiMsgDiv.textContent);
-                        } else {
-                            console.log("Gemini Nano: Dialogue mode active. Skipped command execution.");
-                        }
+                        // ストリーミング完了後、出力テキストからJSONコマンドを抽出して実行
+                        this.parseAndExecuteCommand(aiMsgDiv.textContent);
                     } catch (error) {
                         console.error("Gemini Nano Stream Error:", error);
-                        aiMsgDiv.textContent = "⚠️ エラーが発生しました。応答を生成できませんでした。";
-                        aiMsgDiv.style.color = "red";
+                        // 中断起因のエラーか、通常のシステムエラーかを判定
+                        if (error.name === "AbortError") {
+                            aiMsgDiv.textContent = "⚠️ ユーザーによって生成が中断されました。";
+                            aiMsgDiv.style.color = "orange";
+                        } else {
+                            aiMsgDiv.textContent = "⚠️ エラーが発生しました。応答を生成できませんでした。";
+                            aiMsgDiv.style.color = "red";
+                        }
                     } finally {
-                        // UIのロックを解除してフォーカスを戻す
+                        // 状態のリセットとUIを通常モードへ戻す処理
+                        this.isGenerating = false;
+                        this.abortController = null;
+                        
                         this.userInput.disabled = false;
+                        this.sendBtn.textContent = "送信";
+                        this.sendBtn.style.backgroundColor = "#007acc"; // 元のテーマカラー（青）に戻す
                         this.sendBtn.disabled = false;
                         this.userInput.focus();
                     }
@@ -5134,7 +5165,10 @@ sys.stderr = Web_Stdout()
                     if (this.chatContainer) {
                         this.chatContainer.innerHTML = `
                             <div style="background-color: #333; padding: 8px 12px; border-radius: 4px; align-self: flex-start; max-width: 85%; color: #ccc;">
-                                Hello! This is the Gemini Nano agent in your local environment. Please start the AI ​​using the button below.
+                                You can launch Gemini nano and chat using the button below.
+                            </div>
+                            <div style="background-color: #333; padding: 8px 12px; border-radius: 4px; align-self: flex-start; max-width: 85%; color: #ccc;">
+                                下のボタンから Gemini nano を起動し、チャット出来ます
                             </div>
                         `;
                     }
@@ -5292,11 +5326,18 @@ sys.stderr = Web_Stdout()
                     // AI出力用のプレースホルダーをUI（チャットサイドバー）に反映
                     const aiMsgDiv = this.appendMessage("...", "ai");
 
+                    // 応答中の状態を設定し、UIを「中断」モードへ切り替える
+                    this.isGenerating = true;
+                    this.abortController = new AbortController();
+
                     this.userInput.disabled = true;
-                    this.sendBtn.disabled = true;
+                    this.sendBtn.textContent = "中断";
+                    this.sendBtn.style.backgroundColor = "#d9534f"; // 警告カラー（赤）に変更
+                    this.sendBtn.disabled = false;
 
                     try {
-                        const stream = this.aiSession.promptStreaming(feedbackText);
+                        // 自律ループのストリーミングにもシグナルを適用
+                        const stream = this.aiSession.promptStreaming(feedbackText, { signal: this.abortController.signal });
                         aiMsgDiv.textContent = "";
                         for await (const chunk of stream) {
                             aiMsgDiv.textContent += chunk;
@@ -5306,10 +5347,22 @@ sys.stderr = Web_Stdout()
                         this.parseAndExecuteCommand(aiMsgDiv.textContent);
                     } catch (error) {
                         console.error("Gemini Nano Loop Stream Error:", error);
-                        aiMsgDiv.textContent = "⚠️ エラーが発生しました。ループを維持できませんでした。";
-                        aiMsgDiv.style.color = "red";
+                        // 中断起因の例外（AbortError）かどうかを判定してメッセージを出し分ける
+                        if (error.name === "AbortError") {
+                            aiMsgDiv.textContent = "⚠️ ユーザーによって自律ループが中断されました。";
+                            aiMsgDiv.style.color = "orange";
+                        } else {
+                            aiMsgDiv.textContent = "⚠️ エラーが発生しました。ループを維持できませんでした。";
+                            aiMsgDiv.style.color = "red";
+                        }
                     } finally {
+                        // 状態のリセットとUIを通常モードへ戻す処理
+                        this.isGenerating = false;
+                        this.abortController = null;
+
                         this.userInput.disabled = false;
+                        this.sendBtn.textContent = "送信";
+                        this.sendBtn.style.backgroundColor = "#007acc"; // 元のテーマカラー（青）に戻す
                         this.sendBtn.disabled = false;
                     }
                 }
