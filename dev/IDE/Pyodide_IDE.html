@@ -4271,6 +4271,55 @@ sys.stderr = Web_Stdout()
             //-------------------------------------------------------- ### Gemini_Nano_Management
             let activeAgentSource = null; // 現在Pythonスクリプトを実行要請しているエージェント ("NANO" | "WEB_BRIDGE")
 
+            // LLMからの応答テキストを解析してJSONコマンドを抽出する共通関数
+            function parseAgentResponse(text) {
+                if (!text) {
+                    return {
+                        "cmd": "No_Command",
+                        "message": "システム通知: 出力の中にコマンドが発見できませんでした。意図したものであれば次のステップへ進んでください。意図したものでなければ修正してください。"
+                    };
+                }
+
+                // 複数コマンド検出 (簡易的: "cmd": "..." が2つ以上あるか)
+                // JSONブロックが複数ある場合も検出できる
+                const cmdMatches = text.match(/"cmd"\s*:\s*"/g);
+                if (cmdMatches && cmdMatches.length > 1) {
+                    return {
+                        "cmd": "Multiple_commands",
+                        "message": "システム通知: 複数のコマンド（JSON）が検出されました。一度に実行できるコマンドは一つだけです。順次実行するか、一つに絞ってください。"
+                    };
+                }
+
+                let jsonStr = null;
+
+                // 1. ```json ... ``` の抽出を試みる
+                const jsonBlockMatch = text.match(/```json\s*([\s\S]*?)```/);
+                if (jsonBlockMatch && jsonBlockMatch[1]) {
+                    jsonStr = jsonBlockMatch[1];
+                } else {
+                    // 2. ブロックがない場合、最初の "{" から 最後の "}" までを抽出してみる
+                    const start = text.indexOf("{");
+                    const end = text.lastIndexOf("}");
+                    if (start !== -1 && end !== -1 && end > start) {
+                        jsonStr = text.substring(start, end + 1);
+                    }
+                }
+
+                if (jsonStr) {
+                    try {
+                        return JSON.parse(jsonStr);
+                    } catch (e) {
+                        console.warn("JSON Parse Error:", e);
+                    }
+                }
+
+                // 該当しない場合は未検出通知を返す
+                return {
+                    "cmd": "No_Command",
+                    "message": "出力の中にコマンドが発見できませんでした。意図したものであれば次のステップへ進んでください。意図したものでなければ修正してください。目的が達成されたのであれば「{\"cmd\": \"goal_achieved\", \"message\": \"目的達成内容\"}」コマンドで終了してください。"
+                };
+            }
+
             // エージェント（Nano / Web版ブリッジ）から届いたコマンドを共通で処理する関数
             function executeAgentCommand(commandData, agentSource) {
                 if (!commandData || !commandData.cmd) return;
@@ -5117,8 +5166,11 @@ sys.stderr = Web_Stdout()
                                 ...sessionOptions,
                                 monitor: (m) => {
                                     m.addEventListener("downloadprogress", (e) => {
-                                        const progress = Math.round((e.loaded / e.total) * 100);
-                                        this.updateStatus(`🔄 DL中... ${progress}%`, "orange");
+                                        // 実際のダウンロードが開始され、進行している場合のみ進捗を表示する
+                                        if (e.total > 0 && e.loaded > 0) {
+                                            const progress = Math.round((e.loaded / e.total) * 100);
+                                            this.updateStatus(`🔄 DL中... ${progress}%`, "orange");
+                                        }
                                     });
                                 }
                             });
@@ -5258,30 +5310,15 @@ sys.stderr = Web_Stdout()
 
                 // 抽出したコマンドを解析し、適切なシステム処理を実行するメソッド
                 parseAndExecuteCommand(text) {
-                    const jsonCandidates = this.extractJsonObjects(text);
+                    const commandData = parseAgentResponse(text);
 
-                    if (jsonCandidates.length === 0) {
-                        // コマンド未検出時のフィードバック通知
-                        const noCommandPayload = {
-                            "cmd": "No_Command",
-                            "message": `出力の中にコマンドが発見できませんでした。意図したものであれば次のステップへ進んでください。意図したものでなければ修正してください。目的が達成されたのであれば「{"cmd": "goal_achieved", "message": "目的達成内容"}」コマンドで終了してください。`
-                        };
-                        this.sendSystemFeedback(JSON.stringify(noCommandPayload, null, 4));
-                        return;
-                    }
-
-                    if (jsonCandidates.length > 1) {
-                        // 複数コマンド検出時の警告通知
-                        const multipleCommandsPayload = {
-                            "cmd": "Multiple_commands",
-                            "message": "システム通知: 複数のコマンド（JSON）が検出されました。一度に実行できるコマンドは一つだけです。順次実行するか、一つに絞ってください。"
-                        };
-                        this.sendSystemFeedback(JSON.stringify(multipleCommandsPayload, null, 4));
+                    if (commandData.cmd === "No_Command" || commandData.cmd === "Multiple_commands") {
+                        // 未検出または複数検出時のフィードバック通知
+                        this.sendSystemFeedback(JSON.stringify(commandData, null, 4));
                         return;
                     }
 
                     try {
-                        const commandData = JSON.parse(jsonCandidates[0]);
                         console.log("Gemini Nano Executing Command:", commandData);
 
                         if (commandData.cmd === "script_run_request" && commandData.script) {
@@ -5395,52 +5432,12 @@ sys.stderr = Web_Stdout()
 
                 const data = (() => {
                     if (event.source === window.opener && is_allowed_origin) {
-                        const text = event.data.text || "";
-
-                        // 複数コマンド検出 (簡易的: "cmd": "..." が2つ以上あるか)
-                        // JSONブロックが複数ある場合も検出できる
-                        const cmdMatches = text.match(/"cmd"\s*:\s*"/g);
-                        if (cmdMatches && cmdMatches.length > 1) {
-                            return {
-                                "cmd": "Multiple_commands",
-                                "message": "システム通知: 複数のコマンド（JSON）が検出されました。一度に実行できるコマンドは一つだけです。順次実行するか、一つに絞ってください。"
-                            };
-                        }
-
-                        let jsonStr = null;
-
-                        // 1. ```json ... ``` の抽出を試みる
-                        const jsonBlockMatch = text.match(/```json\s*([\s\S]*?)```/);
-                        if (jsonBlockMatch && jsonBlockMatch[1]) {
-                            jsonStr = jsonBlockMatch[1];
-
-                        } else {
-                            // 2. ブロックがない場合、最初の "{" から 最後の "}" までを抽出してみる
-                            const start = text.indexOf("{");
-                            const end = text.lastIndexOf("}");
-                            if (start !== -1 && end !== -1 && end > start) {
-                                jsonStr = text.substring(start, end + 1);
-                            }
-                        }
-
-                        if (jsonStr) {
-                            try {
-                                return JSON.parse(jsonStr);
-                            } catch (e) {
-                                console.warn("JSON Parse Error:", e);
-                            }
-                        }
-
-                        // 該当しない場合は元のイベントデータ(textなど)を返す、あるいは無視する
-                        return {
-                            "cmd": "No_Command",
-                            "message": `出力の中にコマンドが発見できませんでした。意図したものであれば次のステップへ進んでください。意図したものでなければ修正してください。目的が達成されたのであれば「{"cmd": "goal_achieved", "message": "目的達成内容"}」コマンドで終了してください。`
-                        };
-
+                        return parseAgentResponse(event.data.text);
                     } else {
                         return event.data;
                     }
                 })();
+
                 console.log("# get_post_message #", data);
 
                 //-------------------------------------------------------- ### Agent_Script_Request (Geminiからの実行要求)
