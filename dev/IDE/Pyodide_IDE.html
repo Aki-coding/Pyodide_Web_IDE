@@ -363,13 +363,20 @@
                 </div>
             </div>
             <div id="nano-input-container" style="padding: 10px; border-top: 1px solid #333; background-color: #1e1e1e; display: flex; flex-direction: column; gap: 8px;">
+                <div id="nano-mode-container" style="display: flex; align-items: center; gap: 6px; font-size: 9pt; color: #aaa; user-select: none; margin-bottom: -2px;">
+                    <input type="checkbox" id="nano-agent-toggle" checked style="cursor: pointer;">
+                    <label for="nano-agent-toggle" style="cursor: pointer;">🤖 Agent mode</label>
+                    <select id="nano-lang-select" style="margin-left: auto; background-color: #2d2d2d; color: white; border: 1px solid #555; border-radius: 4px; font-size: 9pt; padding: 2px; outline: none; cursor: pointer;">
+                        <option value="auto">🌐 auto</option>
+                        <option value="ja">ja</option>
+                        <option value="en">en</option>
+                        <option value="es">es</option>
+                        <option value="fr">fr</option>
+                    </select>
+                </div>
                 <button id="nano-start-btn" style="width: 100%; padding: 8px; background-color: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">
                     🟢 AIを起動する
                 </button>
-                <div id="nano-mode-container" style="display: none; align-items: center; gap: 6px; font-size: 9pt; color: #aaa; user-select: none; margin-bottom: -2px;">
-                    <input type="checkbox" id="nano-agent-toggle" checked style="cursor: pointer;">
-                    <label for="nano-agent-toggle" style="cursor: pointer;">🤖 エージェントループを有効化</label>
-                </div>
                 <div id="nano-chat-input-box" style="display: none; gap: 6px;">
                     <textarea id="nano-user-input" placeholder="指令を入力... (Enterで送信)" style="flex: 1; height: 32px; padding: 6px; background-color: #2d2d2d; color: white; border: 1px solid #555; border-radius: 4px; resize: none; outline: none; font-size: 10pt;"></textarea>
                     <button id="nano-send-btn" style="padding: 0 12px; background-color: #007acc; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;" disabled>送信</button>
@@ -4271,17 +4278,41 @@ sys.stderr = Web_Stdout()
             //-------------------------------------------------------- ### Gemini_Nano_Management
             let activeAgentSource = null; // 現在Pythonスクリプトを実行要請しているエージェント ("NANO" | "WEB_BRIDGE")
 
+            let continuousErrorCount = 0; // 連続する非有効コマンドの回数をカウントする変数
+
+            // 有規のコマンドが来たらリセット、エラーならカウントして3に達したら停止トリガー(true)を返す関数
+            function trackAgentResponseStatus(cmd) {
+                const validCommands = [
+                    "script_run_request",
+                    "add_memory",
+                    "memory_presentation",
+                    "user_verification",
+                    "goal_achieved"
+                ];
+
+                if (validCommands.includes(cmd)) {
+                    continuousErrorCount = 0; // 正常なコマンドが来たらカウントをリセット
+                    return false;
+                } else {
+                    continuousErrorCount++;
+                    console.warn(`[Agent Loop Warning] 連続エラーカウント: ${continuousErrorCount}/3 (現在の状態: ${cmd})`);
+                    if (continuousErrorCount >= 3) {
+                        continuousErrorCount = 0; // トリガーを引くため一度リセット
+                        return true;
+                    }
+                    return false;
+                }
+            }
+
             // LLMからの応答テキストを解析してJSONコマンドを抽出する共通関数
             function parseAgentResponse(text) {
                 if (!text) {
                     return {
                         "cmd": "No_Command",
-                        "message": "システム通知: 出力の中にコマンドが発見できませんでした。意図したものであれば次のステップへ進んでください。意図したものでなければ修正してください。"
+                        "message": "システム通知: 出力の中に json コマンドが発見できませんでした。正しい json フォーマットに修正してください。"
                     };
                 }
 
-                // 複数コマンド検出 (簡易的: "cmd": "..." が2つ以上あるか)
-                // JSONブロックが複数ある場合も検出できる
                 const cmdMatches = text.match(/"cmd"\s*:\s*"/g);
                 if (cmdMatches && cmdMatches.length > 1) {
                     return {
@@ -4291,13 +4322,10 @@ sys.stderr = Web_Stdout()
                 }
 
                 let jsonStr = null;
-
-                // 1. ```json ... ``` の抽出を試みる
                 const jsonBlockMatch = text.match(/```json\s*([\s\S]*?)```/);
                 if (jsonBlockMatch && jsonBlockMatch[1]) {
                     jsonStr = jsonBlockMatch[1];
                 } else {
-                    // 2. ブロックがない場合、最初の "{" から 最後の "}" までを抽出してみる
                     const start = text.indexOf("{");
                     const end = text.lastIndexOf("}");
                     if (start !== -1 && end !== -1 && end > start) {
@@ -4310,13 +4338,17 @@ sys.stderr = Web_Stdout()
                         return JSON.parse(jsonStr);
                     } catch (e) {
                         console.warn("JSON Parse Error:", e);
+                        // パース失敗時、AIに構文を修正させるための専用ステータスを返却
+                        return {
+                            "cmd": "JSON_Parse_Error",
+                            "message": `システム通知: 提示されたJSONの構文が不正です。理由: ${e.message}。JSON内部でPythonのトリプルクォート(\"\"\")や生の改行は使用できません。文字列中の改行は必ず「\\n」にエスケープし、全体を1つのダブルクォーテーションで囲んでください。`
+                        };
                     }
                 }
 
-                // 該当しない場合は未検出通知を返す
                 return {
                     "cmd": "No_Command",
-                    "message": "出力の中にコマンドが発見できませんでした。意図したものであれば次のステップへ進んでください。意図したものでなければ修正してください。目的が達成されたのであれば「{\"cmd\": \"goal_achieved\", \"message\": \"目的達成内容\"}」コマンドで終了してください。"
+                    "message": "システム通知: 出力の中に json コマンドが発見できませんでした。正しい json フォーマットに修正してください。"
                 };
             }
 
@@ -4920,6 +4952,8 @@ sys.stderr = Web_Stdout()
 - 一気に複雑な推論や処理を行わず、チェーン・オブ・ソートで段階的に処理を進めてください
 ##### 遵守事項
 - json コマンドは一回の応答に必ず一つまででとし、 json でコマンドを実行する場合はコマンド以外の余計な文章は不要です
+- json にはトリプルクオートは使用できません
+- json には改行は使えない為、コード中の改行は「\n」でエスケープしてください
 ## 各種コマンドの json フォーマット 
 ### Gemini からシステムへのスクリプト実行依頼 json フォーマット
 {
@@ -4981,7 +5015,7 @@ sys.stderr = Web_Stdout()
 ### システムからGeminiページへの規定フォーマットjson未検出通知フォーマット 
 {
   "cmd": "No_Command",
-  "message": "出力の中にコマンドが発見できませんでした。意図したものであれば次のステップへ進んでください。意図したものでなければ修正してください。目的が達成されたのであれば「{"cmd": "goal_achieved", "message": "目的達成内容"}」コマンドで終了してください。"
+  "message": "システム通知: 出力の中に json コマンドが発見できませんでした。正しい json フォーマットに修正してください。"
 };
 #システムプロンプト終了
             `,
@@ -5002,6 +5036,7 @@ sys.stderr = Web_Stdout()
                     this.resetBtn = document.getElementById("nano-reset-btn");
                     this.agentToggle = document.getElementById("nano-agent-toggle");
                     this.modeContainer = document.getElementById("nano-mode-container");
+                    this.langSelect = document.getElementById("nano-lang-select"); // 言語選択プルダウンの要素を取得
                     this.abortController = null; // 中断制御用のコントローラー
                     this.isGenerating = false; // 現在AIが応答生成中かどうかのフラグ
                     this.systemPrompt = systemPromptText["codingAgent"];
@@ -5137,6 +5172,13 @@ sys.stderr = Web_Stdout()
 
                 // Local AI（Prompt API）の起動と初期化処理
                 async startLocalAI() {
+                    // 起動時のエージェントモードトグル状態に応じてシステムプロンプトを切り替え
+                    if (this.agentToggle && !this.agentToggle.checked) {
+                        this.systemPrompt = systemPromptText["simple"];
+                    } else {
+                        this.systemPrompt = systemPromptText["codingAgent"];
+                    }
+
                     this.startBtn.disabled = true;
                     this.startBtn.innerText = "🔄 初期化処理中...";
 
@@ -5161,6 +5203,13 @@ sys.stderr = Web_Stdout()
                                 { role: "system", content: this.systemPrompt }
                             ]
                         };
+
+                        // 選択された言語が auto 以外の場合、セッションオプションに出力言語（outputLanguage）を設定
+                        const selectedLang = this.langSelect ? this.langSelect.value : "auto";
+                        if (selectedLang !== "auto") {
+                            sessionOptions.outputLanguage = selectedLang;
+                        }
+
                         try {
                             this.aiSession = await aiAPI.create({
                                 ...sessionOptions,
@@ -5182,7 +5231,9 @@ sys.stderr = Web_Stdout()
                         // 初期化成功時のUI切り替え
                         this.updateStatus("🟢 準備完了", "green");
                         this.startBtn.style.display = "none";
-                        this.modeContainer.style.display = "flex";
+                        if (this.langSelect) {
+                            this.langSelect.disabled = true; // セッション作成後は言語変更を無効化
+                        }
                         this.inputBox.style.display = "flex";
                         this.sendBtn.disabled = false;
                         this.userInput.focus();
@@ -5232,11 +5283,8 @@ sys.stderr = Web_Stdout()
                         this.startBtn.disabled = false;
                         this.startBtn.innerText = "🟢 AIを起動する";
                     }
-                    if (this.modeContainer) {
-                        this.modeContainer.style.display = "none";
-                    }
-                    if (this.agentToggle) {
-                        this.agentToggle.checked = true; // デフォルト状態(有効)に戻す
+                    if (this.langSelect) {
+                        this.langSelect.disabled = false; // リセット時は再度選択可能にする
                     }
                     if (this.inputBox) {
                         this.inputBox.style.display = "none";
@@ -5310,7 +5358,19 @@ sys.stderr = Web_Stdout()
 
                 // 抽出したコマンドを解析し、適切なシステム処理を実行するメソッド
                 parseAndExecuteCommand(text) {
+                    // エージェントモードOFF時はコマンド解析やエラー通知を一切行わず終了
+                    if (this.agentToggle && !this.agentToggle.checked) {
+                        return;
+                    }
+
                     const commandData = parseAgentResponse(text);
+
+                    // 連続エラーカウントをチェック
+                    if (trackAgentResponseStatus(commandData.cmd)) {
+                        alert("【エージェント停止】有効なJSONコマンドが3回連続で検出されなかったため、自律ループを自動停止しました。");
+                        this.appendMessage("🛑 3回連続でコマンド非検出、または構文エラーが続いたため、自律ループを強制停止しました。指示内容を見直してください。", "system");
+                        return; // ここで処理を遮断し、自動フィードバックループを止めます
+                    }
 
                     if (commandData.cmd === "No_Command" || commandData.cmd === "Multiple_commands") {
                         // 未検出または複数検出時のフィードバック通知
@@ -5359,6 +5419,11 @@ sys.stderr = Web_Stdout()
 
                     // システムからのフィードバック内容（応答）をチャット欄に表示
                     this.appendMessage(feedbackText, "system");
+
+                    // エージェントモードがオフの場合は自律ループ（自動返信）を行わずここで終了
+                    if (this.agentToggle && !this.agentToggle.checked) {
+                        return;
+                    }
 
                     // AI出力用のプレースホルダーをUI（チャットサイドバー）に反映
                     const aiMsgDiv = this.appendMessage("...", "ai");
@@ -5439,6 +5504,23 @@ sys.stderr = Web_Stdout()
                 })();
 
                 console.log("# get_post_message #", data);
+
+                // ブックマークレット連携（外部LLM）からの応答の場合のみ連続エラーを判定
+                if (event.source === window.opener && is_allowed_origin) {
+                    if (trackAgentResponseStatus(data.cmd)) {
+                        alert("【エージェント停止】有効なJSONコマンドが3回連続で検出されなかったため、外部連携ループを自動停止しました。");
+                        
+                        // 呼び出し元のGeminiページ側にも停止メッセージを投げて無限フィードバックを防ぐ
+                        const stopPayload = { 
+                            "cmd": "Agent_Stopped", 
+                            "message": "システム通知: 3回連続で有効なコマンドが検出されなかったため、安全のために自律ループを強制停止しました。" 
+                        };
+                        if (window.opener && !window.opener.closed) {
+                            window.opener.postMessage(stopPayload, "*");
+                        }
+                        return; // 処理をここで終了し、Sandboxへの転送や返送を行いません
+                    }
+                }
 
                 //-------------------------------------------------------- ### Agent_Script_Request (Geminiからの実行要求)
                 if (data.cmd === "script_run_request" && data.script) {
