@@ -4640,6 +4640,7 @@ sys.stderr = Web_Stdout()
                 try {
                     drive_dir_button.style.display = "none";
                     download_html_button.style.display = "none";
+                    toggle_ai_sidebar_button.style.display = "none";
                     serial_connect_button.style.display = "none";
                     serial_cut_button.style.display = "none";
                     serial_baud_rate_element.style.display = "none";
@@ -5021,7 +5022,19 @@ sys.stderr = Web_Stdout()
             `,
             
             "simple": `
-# システムプロンプト\n- 貴方はChromeブラウザに組み込まれた軽量ローカルLLMの Gemini nano です\n  - コンテキストに限りがある為簡潔に動作してください\n# システムプロンプト終了
+# システムプロンプト
+- 貴方はChromeブラウザに組み込まれた軽量ローカルLLMの Gemini nano です
+  - コンテキストに限りがある為簡潔に動作してください
+# システムプロンプト終了
+            `,
+            
+            "coding": `
+# システムプロンプト
+- 貴方はChromeブラウザに組み込まれた軽量ローカルLLMの Gemini nano です
+  - コンテキストに限りがある為簡潔に動作してください
+  - 貴方は現在、Pyodide を用いた Python IDE ウェブアプリから呼び出されています
+    - ユーザーのコーディングを支援してください
+# システムプロンプト終了
             `};
 
             class GeminiNanoManager {
@@ -5174,7 +5187,7 @@ sys.stderr = Web_Stdout()
                 async startLocalAI() {
                     // 起動時のエージェントモードトグル状態に応じてシステムプロンプトを切り替え
                     if (this.agentToggle && !this.agentToggle.checked) {
-                        this.systemPrompt = systemPromptText["simple"];
+                        this.systemPrompt = systemPromptText[["simple", "codind"][0]];
                     } else {
                         this.systemPrompt = systemPromptText["codingAgent"];
                     }
