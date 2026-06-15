@@ -365,7 +365,9 @@
             <div id="nano-input-container" style="padding: 10px; border-top: 1px solid #333; background-color: #1e1e1e; display: flex; flex-direction: column; gap: 8px;">
                 <div id="nano-mode-container" style="display: flex; align-items: center; gap: 6px; font-size: 9pt; color: #aaa; user-select: none; margin-bottom: -2px;">
                     <input type="checkbox" id="nano-agent-toggle" checked style="cursor: pointer;">
-                    <label for="nano-agent-toggle" style="cursor: pointer;">🤖 Agent mode</label>
+                    <label for="nano-agent-toggle" style="cursor: pointer;">🤖Agentic</label>
+                    <input type="checkbox" id="nano-summary-toggle" style="cursor: pointer;">
+                    <label for="nano-summary-toggle" style="cursor: pointer;">📝Summarizer</label>
                     <select id="nano-lang-select" style="margin-left: auto; background-color: #2d2d2d; color: white; border: 1px solid #555; border-radius: 4px; font-size: 9pt; padding: 2px; outline: none; cursor: pointer;">
                         <option value="auto">🌐 auto</option>
                         <option value="ja">ja</option>
@@ -374,12 +376,9 @@
                         <option value="fr">fr</option>
                     </select>
                 </div>
-                <button id="nano-start-btn" style="width: 100%; padding: 8px; background-color: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">
-                    🟢 AIを起動する
-                </button>
-                <div id="nano-chat-input-box" style="display: none; gap: 6px;">
+                <div id="nano-chat-input-box" style="display: flex; gap: 6px;">
                     <textarea id="nano-user-input" placeholder="指令を入力... (Enterで送信)" style="flex: 1; height: 32px; padding: 6px; background-color: #2d2d2d; color: white; border: 1px solid #555; border-radius: 4px; resize: none; outline: none; font-size: 10pt;"></textarea>
-                    <button id="nano-send-btn" style="padding: 0 12px; background-color: #007acc; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;" disabled>送信</button>
+                    <button id="nano-send-btn" style="padding: 0 12px; background-color: #007acc; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">送信</button>
                 </div>
             </div>
         </div>
@@ -618,7 +617,7 @@
             border-right: 1px solid #333 !important;
 		}
 		/* 行・列のヘッダー (A, B, C... / 1, 2, 3...) */
-		.jexcel thead tr td, 
+		.jexcel thead tr td,
 		.jexcel tbody tr td.jexcel_label {
             background-color: #2d2d2d !important; /* 少し明るいグレーで区別 */
             color: #ccc !important;
@@ -1106,7 +1105,7 @@
 						<button id="reset_vfs_explorer" class="sidebar_button_css" title="Reset_VFS">
 							<svg viewBox="0 0 512 512" width="12" height="12" fill="currentColor">
 								<g>
-									<polygon class="st0" points="512,89.75 422.256,0.005 256.004,166.256 89.754,0.005 0,89.75 166.255,256 0,422.25 89.754,511.995 
+									<polygon class="st0" points="512,89.75 422.256,0.005 256.004,166.256 89.754,0.005 0,89.75 166.255,256 0,422.25 89.754,511.995
 									256.004,345.745 422.26,511.995 512,422.25 345.744,256"></polygon>
 								</g>
 							</svg>
@@ -3860,16 +3859,16 @@ def apply_auto_install(sourceCode):
             if not moduleName:
                 return
             rootModule = moduleName.split('.')[0]
-            
+
             # 1. 標準ライブラリ/組み込みは判定から除外
             if rootModule in stdlibModules:
                 return
-                
+
             # 2. 個別マッピング（異名）に存在する場合
             if rootModule in importToPackage:
                 detectedPackages.add(importToPackage[rootModule])
                 return
-            
+
             # 3. リスト内走査（アンダースコアをハイフンに直したパッケージ名も自動判定）
             hyphenatedName = rootModule.replace('_', '-')
             if rootModule in validPackages:
@@ -3911,19 +3910,45 @@ def apply_auto_install(sourceCode):
 
 # --- 1) Matplotlib show injection function ---
 def _inject_matplotlib_show():
-	import matplotlib
-	import matplotlib.pyplot as plt
-	import io, base64, js
+    import matplotlib
+    import matplotlib.pyplot as plt
+    import io, base64, js
 
-	def custom_show(*args, **kwargs):
-		buf = io.BytesIO()
-		plt.savefig(buf, format="png")
-		buf.seek(0)
-		img_str = base64.b64encode(buf.read()).decode("utf-8")
-		js.js_add_plot_image(img_str)
-		plt.clf()
+    def custom_show(*args, **kwargs):
+        # グラフのメタデータ（統計情報）を抽出してテキスト化
+        try:
+            currentAxes = plt.gca()
+            plotSummary = ["[Matplotlib Image Generated]"]
 
-	plt.show = custom_show
+            # タイトルや軸ラベルの取得
+            if currentAxes.get_title():
+                plotSummary.append(f"Title: {currentAxes.get_title()}")
+            if currentAxes.get_xlabel():
+                plotSummary.append(f"X-Axis: {currentAxes.get_xlabel()}")
+            if currentAxes.get_ylabel():
+                plotSummary.append(f"Y-Axis: {currentAxes.get_ylabel()}")
+
+            # 描画されているデータ（線グラフ等）の簡易統計値を抽出
+            targetLines = currentAxes.get_lines()
+            for i, currentLine in enumerate(targetLines):
+                lineLabel = currentLine.get_label() or f"Line_{i + 1}"
+                yData = currentLine.get_ydata()
+                if len(yData) > 0:
+                    plotSummary.append(f"- {lineLabel}: points={len(yData)}, yMin={min(yData)}, yMax={max(yData)}")
+
+            # 抽出したメタデータを標準出力経由でGemini nanoに届くログに流す
+            print("\\n".join(plotSummary))
+        except Exception as metaError:
+            print(f"[Matplotlib Metadata Error]: {metaError}")
+
+        buf = io.BytesIO()
+        plt.savefig(buf, format="png")
+        buf.seek(0)
+        img_str = base64.b64encode(buf.read()).decode("utf-8")
+        js.js_add_plot_image(img_str)
+        plt.clf()
+
+    plt.show = custom_show
 
 # --- 2) Monkey patch micropip.install ---
 import micropip
@@ -4434,61 +4459,48 @@ sys.stderr = Web_Stdout()
             }
 
             //-------------------------------------------------------- ### custom_system_prompt
-            const custom_system_prompt = `
-#システムプロンプト 
-
-##役割
-・あなたはエージェンティックに動作するGeminiです
-
-##目的
-・あなたはエージェンティックに動作し、ユーザーが与えた目的を達成してください
-
-##言語
-・貴方が回答に用いる言語は「#システムプロンプト終了」以降に記述された、ユーザーのプロンプトの言語に合わせてください
-
-###目的を達成するためのツール
-####Pyodideを用いたPython IDEウェブアプリを開発してあります
-#####IDEウェブアプリには仮想ファイルシステムが実装されており、Pythonのgrob等でファイルの検索が行える他、通常のPythonスクリプトによって仮想ファイルシステム内へファイルを保存できます
-####あなたがこのIDEウェブアプリを操作する為の拡張機能を開発してあります
-####ツールの使い方
-・決まったjsonの仕様でスクリプトを提示すれば、拡張機能によってスクリプトがIDEウェブアプリへ送信され、実行結果が返却されます
-・Pyodideには「標準ライブラリ」と「micro pip」のみインストール済みですので、必要に応じて追加のライブラリをインストールしてください
-・一気に複雑な推論や処理を行わず、チェーン・オブ・ソートで段階的に処理を進めてください
-・どのようなjsonフォーマットが存在するのかは「#web版Geminiエージェント化拡張機能の仕様 」を確認してください
-#####遵守事項
-・拡張機能に依頼するjsonは一回の応答に必ず一つまでです
-
-##目的達成に動く前に
-1. タスクを策定し、提示してください
-2. 「VFS_search.py」というスクリプトが「知識」にアップロードしてありますので、それを使用して仮想ファイルシステム内 のディレクトリ構造を探索し、コンテキストを確認してください 
-
-#各種コマンドのフォーマット 
-##GeminiページからIDEページへのスクリプト実行依頼jsonフォーマット
+            const custom_system_prompt = `# システムプロンプト
+- 貴方は現在、Pyodide を用いた Python IDE ウェブアプリ (以降 <<IDE>>) とブリッジされており、通信可能な状況です
+## 目的
+- あなたはエージェンティックに動作し、ユーザーが与える目的を達成してください
+  - 目的を達成した後は後述の「目的達成」 json フォーマット」で完了報告してください
+### 目的を達成するためのツール
+- 規定の json フォーマットでコマンドを提示すれば、貴方は <<IDE>> を操作できます
+- Pyodide には 「標準ライブラリ」と「micro pip」のみインストール済み
+  - 外部ライブラリは Pyodide に対応している物のみ利用可能で、対応ライブラリの使用をコード中に検出すると <<IDE>> が自動インストールします
+- 一気に複雑な推論や処理を行わず、チェーン・オブ・ソートで段階的に処理を進めてください
+#### 遵守事項
+- json コマンドは一回の応答に必ず一つまで
+  - json コマンドを生成する場合はコマンド以外の余計な文章は不要
+- json にはトリプルクオートは使用できません
+- json に改行は使えない為、コード中の改行は「\n」で記述してください
+## 各種コマンドの json フォーマット
+### <<Gemini>> から <<IDE>> への「スクリプト実行依頼」 json フォーマット
 {
     "cmd": "script_run_request",
     "script": "Pythonスクリプトを記述"
 }
-##IDEページからGeminiページへのスクリプト実行結果jsonフォーマット
+### <<IDE>> から <<Gemini>> への「スクリプト実行結果」 json フォーマット
 {
     "cmd": "script_result",
     "result": "実行結果を記述"
 }
-##GeminiページからIDEページへの代理記憶依頼jsonフォーマット
+### <<Gemini>> から <<IDE>> への「代理記憶依頼」 json フォーマット
 {
     "cmd": "add_memory",
     "content":
-        [
-            {
-                "key_1": "value_1"
-            },
-            {
-                "key_2": "value_2"
-            }
-        ]
+    [
+        {
+            "key_1": "value_1"
+        },
+        {
+            "key_2": "value_2"
+        }
+    ]
 }
-###代理記憶する場合、ブックマークレットの代理記憶オブジェクトに新しいキーと値を追加します
-####重複キーの場合は値を上書きします
-###IDEページの代理記憶オブジェクトは以下のような構造になります
+- 代理記憶する場合、ブックマークレットの代理記憶オブジェクトに新しいキーと値を追加します
+  - 重複キーの場合は値を上書きします
+#### <<IDE>> の代理記憶オブジェクトは以下のような構造になります
 {
     "cmd": "memory",
     "content":
@@ -4501,33 +4513,37 @@ sys.stderr = Web_Stdout()
         }
     ]
 }
-##GeminiページからIDEページへの代理記憶提示依頼jsonフォーマット
+### <<Gemini>> から <<IDE>> への「代理記憶提示依頼」 json フォーマット
 {
     "cmd": "memory_presentation"
 }
-##Geminiページからユーザーへの検証依頼jsonフォーマット 
+### <<Gemini>> からユーザーへの「検証依頼」 json フォーマット
 {
     "cmd": "user_verification",
     "message": "ユーザー検証内容"
 }
-##Geminiページからユーザーへの目的達成jsonフォーマット
+### <<Gemini>> からユーザーへの「目的達成」 json フォーマット
 {
     "cmd": "goal_achieved",
     "message": "目的達成内容"
 }
-##Geminiの回答が不正な場合
-・IDEページが回答を解析した結果、規定フォーマットのjsonに合致するものが無い場合、「依頼フォーマットjsonの検出無し、問題なければ次のステップに進め 」というプロンプトをGeminiページに送信します
-
+### <<IDE>> から <<Gemini>> への「コマンド json 多数検出通知」 json フォーマット
+{
+    "cmd": "Multiple_commands",
+    "message": "システム通知: 複数のコマンド（JSON）が検出されました。一度に実行できるコマンドは一つだけです。順次実行するか、一つに絞ってください。"
+}
+### <<IDE>> から <<Gemini>> への「規定フォーマットjson未検出通知」フォーマット
+{
+    "cmd": "No_Command",
+    "message": "システム通知: 出力の中に json コマンドが発見できませんでした。正しい json フォーマットに修正してください。"
+}
 #IDEウェブアプリ解説
 ##コンセプト
-###Python IDEとして、コードエディタ機能とPythonスクリプトの実行機能を有する
-####インストール不要なwebアプリ
-####Python実行環境を含むメインのIDEコンテンツはsandbox属性を付与したiframe内で動作（セキュリティ考慮）
-###webアプリプラットフォームとしての利用も想定
-###親window且つGeminiのドメインから送られてきたPostMessageを解析し、既定のJsonが検出できればそれに応じた処理を実行します
-
-#システムプロンプト終了
-`;
+- Python IDE として、コードエディタ機能と Python スクリプトの実行機能を有する
+  - インストール不要なwebアプリ
+  - Python 実行環境を含むメインの IDE コンテンツは sandbox 属性を付与した iframe 内で動作（セキュリティ考慮）
+- web アプリプラットフォームとしての利用も想定
+- 親 window 且つ Gemini のドメインから送られてきた PostMessage を解析し、既定の Json が検出できればそれに応じた処理を実行します`;
 
             //-------------------------------------------------------- ### header_element
             const toggle_sidebar_button = document.getElementById("toggle_sidebar");
@@ -4938,108 +4954,12 @@ sys.stderr = Web_Stdout()
             const SPM = new Serial_port_manager();
 
             //-------------------------------------------------------- ### Gemini Nano Local Agent Management ###
-            const systemPromptText = {
-                "codingAgent": `
-# システムプロンプト
-- 貴方はChromeブラウザに組み込まれた軽量ローカルLLMの Gemini nano
-  - コンテキストに限りがある為簡潔に動作してください
-  - 貴方は現在、Pyodide を用いた Python IDE ウェブアプリから呼び出されています
-## 目的
-- あなたはエージェンティックに動作し、ユーザーが与える目的を達成してください
-### 目的を達成するためのツール
-- 規定の json フォーマットでコマンドを提示すれば、貴方はシステムを操作できます
-- Pyodide には 「標準ライブラリ」と「micro pip」のみインストール済み
-  - 外部ライブラリは Pyodide に対応している物のみ利用可能で、対応ライブラリの使用をコード中に検出するとシステムが自動インストールします
-- 一気に複雑な推論や処理を行わず、チェーン・オブ・ソートで段階的に処理を進めてください
-##### 遵守事項
-- json コマンドは一回の応答に必ず一つまででとし、 json でコマンドを実行する場合はコマンド以外の余計な文章は不要です
-- json にはトリプルクオートは使用できません
-- json には改行は使えない為、コード中の改行は「\n」でエスケープしてください
-## 各種コマンドの json フォーマット 
-### Gemini からシステムへのスクリプト実行依頼 json フォーマット
-{
-  "cmd": "script_run_request",
-  "script": "Pythonスクリプトを記述"
-}
-### システムから Gemini ページへのスクリプト実行結果 json フォーマット
-{
-  "cmd": "script_result",
-  "result": "実行結果を記述"
-}
-### Gemini からシステムへの代理記憶依頼 json フォーマット
-{
-  "cmd": "add_memory",
-  "content":
-  [
-    {
-      "key_1": "value_1"
-    },
-    {
-      "key_2": "value_2"
-    }
-  ]
-}
-- 代理記憶する場合、ブックマークレットの代理記憶オブジェクトに新しいキーと値を追加します
-  - 重複キーの場合は値を上書きします
-#### システムの代理記憶オブジェクトは以下のような構造になります
-{
-  "cmd": "memory",
-  "content":
-  [
-    {
-      "key_1": "value_1"
-    },
-    {
-      "key_2": "value_2"
-    }
-  ]
-}
-### Gemini からシステムへの代理記憶提示依頼 json フォーマット
-{
-  "cmd": "memory_presentation"
-}
-### Gemini からユーザーへの検証依頼 json フォーマット 
-{
-  "cmd": "user_verification",
-  "message": "ユーザー検証内容"
-}
-### Gemini からユーザーへの目的達成 json フォーマット
-{
-  "cmd": "goal_achieved",
-  "message": "目的達成内容"
-}
-### システムからGeminiページへのコマンドjson多数検出通知フォーマット 
-{
-  "cmd": "Multiple_commands",
-  "message": "システム通知: 複数のコマンド（JSON）が検出されました。一度に実行できるコマンドは一つだけです。順次実行するか、一つに絞ってください。"
-}
-### システムからGeminiページへの規定フォーマットjson未検出通知フォーマット 
-{
-  "cmd": "No_Command",
-  "message": "システム通知: 出力の中に json コマンドが発見できませんでした。正しい json フォーマットに修正してください。"
-};
-#システムプロンプト終了
-            `,
-            
-            "simple": `
-# システムプロンプト
-- 貴方はChromeブラウザに組み込まれた軽量ローカルLLMの Gemini nano です
-  - コンテキストに限りがある為簡潔に動作してください
-# システムプロンプト終了
-            `,
-            
-            "coding": `
-# システムプロンプト
-- 貴方はChromeブラウザに組み込まれた軽量ローカルLLMの Gemini nano です
-  - コンテキストに限りがある為簡潔に動作してください
-  - 貴方は現在、Pyodide を用いた Python IDE ウェブアプリから呼び出されています
-    - ユーザーのコーディングを支援してください
-# システムプロンプト終了
-            `};
-
             class GeminiNanoManager {
                 constructor() {
                     this.aiSession = null;
+                    this.summarizerSession = null; // Summarizer APIのセッション保持用
+                    this.currentSummary = ""; // 常に上書き更新される最新の要約（State）
+                    this.pendingLogs = []; // まだ要約に集約されていない、直近の生ログバッファ
                     this.statusElement = document.getElementById("nano-status");
                     this.chatContainer = document.getElementById("nano-chat-container");
                     this.startBtn = document.getElementById("nano-start-btn");
@@ -5048,18 +4968,27 @@ sys.stderr = Web_Stdout()
                     this.sendBtn = document.getElementById("nano-send-btn");
                     this.resetBtn = document.getElementById("nano-reset-btn");
                     this.agentToggle = document.getElementById("nano-agent-toggle");
+                    this.summaryToggle = document.getElementById("nano-summary-toggle");
                     this.modeContainer = document.getElementById("nano-mode-container");
                     this.langSelect = document.getElementById("nano-lang-select"); // 言語選択プルダウンの要素を取得
+                    this.isFirstSession = true; // 初回起動（セッション未確立）かどうかを管理するフラグ
                     this.abortController = null; // 中断制御用のコントローラー
                     this.isGenerating = false; // 現在AIが応答生成中かどうかのフラグ
-                    this.systemPrompt = systemPromptText["codingAgent"];
+                }
+
+                // エラー発生時やモデル未サポート時に、UIを入力可能な初期状態へ安全に戻すヘルパー関数
+                resetUiToReady() {
+                    this.isGenerating = false;
+                    if (this.userInput) this.userInput.disabled = false;
+                    if (this.sendBtn) {
+                        this.sendBtn.disabled = false;
+                        this.sendBtn.textContent = "送信";
+                        this.sendBtn.style.backgroundColor = "#007acc";
+                    }
                 }
 
                 // UI要素にイベントリスナーを登録
                 initializeEvents() {
-                    if (!this.startBtn) return;
-                    this.startBtn.addEventListener("click", () => this.startLocalAI());
-
                     if (this.resetBtn) {
                         this.resetBtn.addEventListener("click", () => this.resetSession());
                     }
@@ -5093,36 +5022,72 @@ sys.stderr = Web_Stdout()
                 // ユーザーメッセージの送信処理およびAI応答のストリーミング制御
                 async handleSend() {
                     const text = this.userInput.value.trim();
-                    if (!text || !this.aiSession) return;
+                    if (!text) return;
 
-                    // ユーザーのメッセージを画面に追加し、入力をクリア
+                    // 初回送信時はセッションの起動処理を優先する（送信ボタンが起動処理を兼ねる）
+                    if (this.isFirstSession) {
+                        this.appendMessage(text, "user"); // 最初の指示をチャット欄へ表示
+                        this.userInput.value = "";
+                        
+                        // 最初の指示を引数として渡し、システムプロンプトに埋め込んで起動
+                        const isStarted = await this.startLocalAI(text);
+                        if (!isStarted) return; // デバイスが未対応、モデル未ダウンロードなどの場合は処理を遮断
+                        
+                        this.isFirstSession = false; // 起動に成功したため初回フラグを解除
+                        
+                        // 確立されたセッションに対して、最初の指示の処理を実行させる
+                        await this.executeFirstPrompt(text);
+                        return;
+                    }
+
+                    if (!this.aiSession) return;
+
+                    // 2回目以降の通常のメッセージ送信処理
                     this.appendMessage(text, "user");
                     this.userInput.value = "";
 
-                    // AIの応答用プレースホルダーを生成
-                    const aiMsgDiv = this.appendMessage("...", "ai");
+                    // 先に要約を生成・画面表示する（これによりサマリーが上に表示される）
+                    const summary = await this.generateSummary();
+
+                    // AIの応答用プレースホルダーを生成（サマリーの後に生成されるため下に配置される）
+                    const aiMsgDiv = this.appendMessage("...", "ai", false);
 
                     // 応答中の状態を設定し、UIを「中断」モードへ切り替える
                     this.isGenerating = true;
-                    this.abortController = new AbortController();
-                    
+                    const controller = new AbortController();
+                    this.abortController = controller;
+
                     this.userInput.disabled = true;
                     this.sendBtn.textContent = "中断";
                     this.sendBtn.style.backgroundColor = "#d9534f"; // 警告カラー（赤）に変更
                     this.sendBtn.disabled = false;
 
                     try {
-                        // ストリーミングプロンプトの実行（AbortSignalをオプションで渡す）
-                        const stream = this.aiSession.promptStreaming(text, { signal: this.abortController.signal });
-                        
+                        // 送信直前に最新の会話要約（State）を生成・更新
+                        const summary = await this.generateSummary();
+
+                        // 要約が存在する場合はプロンプトの先頭にコンテキストとしてインジェクト
+                        const combinedPrompt = summary
+                            ? `[現在のタイムライン・文脈要約]\n${summary}\n\n[ユーザーからの新しい指示]\n${text}`
+                            : text;
+
+                        // 構築したコンプライド・プロンプトでストリーミングを実行
+                        const stream = this.aiSession.promptStreaming(combinedPrompt, { signal: this.abortController.signal });
+
                         // 最初のローディング表示「...」をクリア
                         aiMsgDiv.textContent = "";
-                        
+
                         // チャンクを受信するたびに順次画面へ反映
                         for await (const chunk of stream) {
                             aiMsgDiv.textContent += chunk;
                             this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
                         }
+
+                        // ストリーミング完了後に、実際の生成テキストをバッファへ記録
+                        if (aiMsgDiv.textContent.trim()) {
+                            this.pendingLogs.push({ role: "ai", content: aiMsgDiv.textContent });
+                        }
+
                         // ストリーミング完了後、出力テキストからJSONコマンドを抽出して実行
                         this.parseAndExecuteCommand(aiMsgDiv.textContent);
                     } catch (error) {
@@ -5137,21 +5102,81 @@ sys.stderr = Web_Stdout()
                         }
                     } finally {
                         // 状態のリセットとUIを通常モードへ戻す処理
-                        this.isGenerating = false;
-                        this.abortController = null;
-                        
-                        this.userInput.disabled = false;
-                        this.sendBtn.textContent = "送信";
-                        this.sendBtn.style.backgroundColor = "#007acc"; // 元のテーマカラー（青）に戻す
-                        this.sendBtn.disabled = false;
-                        this.userInput.focus();
+                        if (this.abortController === controller) {
+                            this.isGenerating = false;
+                            this.abortController = null;
+
+                            this.userInput.disabled = false;
+                            this.sendBtn.textContent = "送信";
+                            this.sendBtn.style.backgroundColor = "#007acc"; // 元のテーマカラー（青）に戻す
+                            this.sendBtn.disabled = false;
+                            this.userInput.focus();
+                        }
+                    }
+                }
+
+                // 起動成功直後に、システムプロンプトの「# 目的」に刻まれた最初の指示を自律駆動させるための関数
+                async executeFirstPrompt(firstText) {
+                    const aiMsgDiv = this.appendMessage("...", "ai", false);
+
+                    this.isGenerating = true;
+                    const controller = new AbortController();
+                    this.abortController = controller;
+
+                    this.userInput.disabled = true;
+                    this.sendBtn.textContent = "中断";
+                    this.sendBtn.style.backgroundColor = "#d9534f"; // 警告カラー（赤）
+                    this.sendBtn.disabled = false;
+
+                    try {
+                        // 最初のタスクは既にシステムプロンプトの目的セクションに固定されているため、
+                        // AIに対して目的の実行を開始するようトリガーを引きます
+                        const stream = this.aiSession.promptStreaming(`私の最初の指示（システムプロンプトの目的セクションに記載したもの）に従って、自律タスクを開始してください。指示内容: ${firstText}`, { signal: this.abortController.signal });
+
+                        aiMsgDiv.textContent = "";
+
+                        for await (const chunk of stream) {
+                            aiMsgDiv.textContent += chunk;
+                            this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+                        }
+
+                        if (aiMsgDiv.textContent.trim()) {
+                            this.pendingLogs.push({ role: "ai", content: aiMsgDiv.textContent });
+                        }
+
+                        // 出力されたコード/JSONコマンドを解析して実行
+                        this.parseAndExecuteCommand(aiMsgDiv.textContent);
+                    } catch (error) {
+                        console.error("Gemini Nano First Stream Error:", error);
+                        if (error.name === "AbortError") {
+                            aiMsgDiv.textContent = "⚠️ ユーザーによって自律ループが中断されました。";
+                            aiMsgDiv.style.color = "orange";
+                        } else {
+                            aiMsgDiv.textContent = "⚠️ エラーが発生しました。タスクを開始できませんでした。";
+                            aiMsgDiv.style.color = "red";
+                        }
+                    } finally {
+                        if (this.abortController === controller) {
+                            this.isGenerating = false;
+                            this.abortController = null;
+
+                            this.userInput.disabled = false;
+                            this.sendBtn.textContent = "送信";
+                            this.sendBtn.style.backgroundColor = "#007acc";
+                            this.sendBtn.disabled = false;
+                            this.userInput.focus();
+                        }
                     }
                 }
 
                 // チャット画面へのメッセージ追加ヘルパー
-                appendMessage(text, sender) {
+                appendMessage(text, sender, saveToLog = true) {
                     const msgDiv = document.createElement("div");
-                    
+
+                    if (sender !== "summary" && saveToLog) {
+                        this.pendingLogs.push({ role: sender, content: text });
+                    }
+
                     // 送信者（ユーザー or AI）に応じたスタイル適用
                     if (sender === "user") {
                         msgDiv.style.backgroundColor = "#007acc";
@@ -5162,6 +5187,11 @@ sys.stderr = Web_Stdout()
                         msgDiv.style.color = "#e0e0e0";
                         msgDiv.style.alignSelf = "flex-start";
                         msgDiv.style.borderLeft = "4px solid #28a745"; // システムからの応答と識別しやすくするための左線
+                    } else if (sender === "summary") {
+                        msgDiv.style.backgroundColor = "#2d2d30";
+                        msgDiv.style.color = "#8ab4f8";
+                        msgDiv.style.alignSelf = "flex-start";
+                        msgDiv.style.borderLeft = "4px solid #b48ead"; // 要約と識別しやすくするためのパープルの左線
                     } else {
                         msgDiv.style.backgroundColor = "#333";
                         msgDiv.style.color = "#ccc";
@@ -5173,62 +5203,170 @@ sys.stderr = Web_Stdout()
                     msgDiv.style.maxWidth = "85%";
                     msgDiv.style.whiteSpace = "pre-wrap"; // 改行を維持
                     msgDiv.style.wordBreak = "break-all"; // 長い英単語の折り返し
-                    
+
                     msgDiv.textContent = text;
                     this.chatContainer.appendChild(msgDiv);
-                    
+
                     // 最下部へスクロール
                     this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
-                    
+
                     return msgDiv;
                 }
 
                 // Local AI（Prompt API）の起動と初期化処理
-                async startLocalAI() {
+                async startLocalAI(firstInstruction = "") {
                     // 起動時のエージェントモードトグル状態に応じてシステムプロンプトを切り替え
                     if (this.agentToggle && !this.agentToggle.checked) {
-                        this.systemPrompt = systemPromptText[["simple", "codind"][0]];
+                        this.systemPrompt = `# システムプロンプト
+- 貴方はChromeブラウザに組み込まれた軽量ローカルLLMの Gemini nano です
+  - コンテキストに限りがある為簡潔に動作してください`;
                     } else {
-                        this.systemPrompt = systemPromptText["codingAgent"];
+                        // ユーザーが入力した最初の指示を、システムプロンプトの「## 目的」部分に動的にインジェクションする
+                        this.systemPrompt = `# システムプロンプト
+- 貴方はChromeブラウザに組み込まれた軽量ローカルLLMの Gemini nano (以降 <<Gemini>>)
+  - コンテキストに限りがある為簡潔に動作してください
+  - 貴方は現在、Pyodide を用いた Python IDE ウェブアプリ (以降 <<IDE>>) から呼び出されています
+## 目的
+- あなたの目的はユーザーから与えられた以下の指示を自律的に達成することです
+  - ${firstInstruction}
+- 目的を達成した後は後述の「目的達成」 json フォーマットで完了報告してください
+### 目的を達成するためのツール
+- 規定の json フォーマットでコマンドを提示すれば、貴方は <<IDE>> を操作できます
+- 一気に複雑な推論や処理を行わず、チェーン・オブ・ソートで段階的に処理を進めてください
+#### 遵守事項
+- json コマンドは一回の応答に必ず一つまで
+  - json コマンドを生成する場合はコマンド以外の余計な文章は不要
+- json にはトリプルクオートは使用できません
+- json に改行は使えない為、コード中の改行は「\n」で記述してください
+## 各種コマンドの json フォーマット
+### <<Gemini>> から <<IDE>> への「スクリプト実行依頼」 json フォーマット
+{
+    "cmd": "script_run_request",
+    "script": "Pythonスクリプトを記述"
+}
+### <<IDE>> から <<Gemini>> への「スクリプト実行結果」 json フォーマット
+{
+    "cmd": "script_result",
+    "result": "実行結果を記述"
+}
+### <<Gemini>> から <<IDE>> への「代理記憶依頼」 json フォーマット
+{
+    "cmd": "add_memory",
+    "content":
+    [
+        {
+            "key_1": "value_1"
+        },
+        {
+            "key_2": "value_2"
+        }
+    ]
+}
+- 代理記憶する場合、ブックマークレットの代理記憶オブジェクトに新しいキーと値を追加します
+  - 重複キーの場合は値を上書きします
+#### <<IDE>> の代理記憶オブジェクトは以下のような構造になります
+{
+    "cmd": "memory",
+    "content":
+    [
+        {
+            "key_1": "value_1"
+        },
+        {
+            "key_2": "value_2"
+        }
+    ]
+}
+### <<Gemini>> から <<IDE>> への「代理記憶提示依頼」 json フォーマット
+{
+    "cmd": "memory_presentation"
+}
+### <<Gemini>> からユーザーへの「検証依頼」 json フォーマット
+{
+    "cmd": "user_verification",
+    "message": "ユーザー検証内容"
+}
+### <<Gemini>> からユーザーへの「目的達成」 json フォーマット
+{
+    "cmd": "goal_achieved",
+    "message": "目的達成内容"
+}
+### <<IDE>> から <<Gemini>> への「コマンド json 多数検出通知」 json フォーマット
+{
+    "cmd": "Multiple_commands",
+    "message": "システム通知: 複数のコマンド（JSON）が検出されました。一度に実行できるコマンドは一つだけです。順次実行するか、一つに絞ってください。"
+}
+### <<IDE>> から <<Gemini>> への「規定フォーマットjson未検出通知」フォーマット
+{
+    "cmd": "No_Command",
+    "message": "システム通知: 出力の中に json コマンドが発見できませんでした。正しい json フォーマットに修正してください。"
+}`;
                     }
 
-                    this.startBtn.disabled = true;
-                    this.startBtn.innerText = "🔄 初期化処理中...";
+                    // UI要素の状態を「起動中」に切り替え、二重入力をガード
+                    this.isGenerating = true;
+                    this.userInput.disabled = true;
+                    this.sendBtn.disabled = true;
+                    this.sendBtn.textContent = "起動中";
+                    this.updateStatus("🔄 起動中...", "orange");
 
                     // 各種 Prompt API のファクトリチェック
-                    const aiAPI = window.LanguageModel || 
-                                  (window.ai && window.ai.languageModel) || 
+                    const aiAPI = window.LanguageModel ||
+                                  (window.ai && window.ai.languageModel) ||
                                   (window.ai && window.ai.assistant);
+
+                    // Summarizer API のファクトリチェック (新仕様にアップデート)
+                    const summarizerAPI = window.Summarizer || (window.ai && window.ai.summarizer);
 
                     if (!aiAPI) {
                         this.updateStatus("❌ 利用不可", "red");
-                        this.startBtn.innerText = "起動失敗 (Prompt API 無効)";
-                        return;
+                        alert("お使いのブラウザ、またはデバイスでは Prompt API がサポートされていません。\nChrome v127以上、かつ必要なコンポーネントが有効であることを確認してください。");
+                        this.resetUiToReady();
+                        return false;
                     }
 
                     try {
-                        this.updateStatus("🔄 セッション作成中...", "orange");
+                        // デバイスでのモデルの利用可能性（ダウンロード状況）を厳密にチェック
+                        let availability = "no";
+                        if (typeof aiAPI.availability === "function") {
+                            availability = await aiAPI.availability();
+                        } else if (typeof aiAPI.capabilities === "function") {
+                            const caps = await aiAPI.capabilities();
+                            availability = caps.available;
+                        }
+                        
+                        console.log("[Gemini Nano Init] availability:", availability);
+                        
+                        // 利用可能状態を表す文字列（"readily" または "available"）と、DL中（"after-download"）のいずれにも該当しない場合のみガードをかける
+                        if (availability !== "readily" && availability !== "available" && availability !== "after-download") {
+                            this.updateStatus("❌ 利用不可", "red");
+                            alert(`Gemini Nano モデルが現在利用できません（現在の状態: ${availability}）。\nモデルプロセスがクラッシュしているか、ブラウザ側で一時的にブロックされています。\nブラウザを再起動するか、別のタブで開き直してください。`);
+                            this.resetUiToReady();
+                            return false;
+                        } else if (availability === "after-download") {
+                            // モデルがまだデバイスにダウンロードされていない場合の処理
+                            this.updateStatus("🔄 モデルDL中...", "orange");
+                            alert("Gemini Nanoモデルのダウンロードがバックグラウンドで開始されました。\nダウンロードには数分かかります。完了するまでしばらくお待ちいただいた後、再度送信をお試しください。");
+                            this.resetUiToReady();
+                            return false; // ダウンロード未完了のため、安全に処理をここでブロックして中断する
+                        } else {
+                            this.updateStatus("🔄 セッション作成中...", "orange");
+                        }
 
-                        // ダウンロードプログレスモニターを試みる
-                        // 最新のAPI仕様に基づき、initialPrompts配列内にオブジェクト形式でシステムプロンプトを内包
+                        // 重複指定や未知のプロパティ（outputLanguage等）による内部パニック（InvalidStateError）を完全に防ぐため、
+                        // 過去のバージョンで最も安定動作していたレガシー形式（initialPromptsのみ）にオプション構造を一本化します。
                         const sessionOptions = {
                             initialPrompts: [
                                 { role: "system", content: this.systemPrompt }
                             ]
                         };
 
-                        // 選択された言語が auto 以外の場合、セッションオプションに出力言語（outputLanguage）を設定
-                        const selectedLang = this.langSelect ? this.langSelect.value : "auto";
-                        if (selectedLang !== "auto") {
-                            sessionOptions.outputLanguage = selectedLang;
-                        }
-
+                        // --- 1. Prompt API (LanguageModel) の初期化 ---
                         try {
                             this.aiSession = await aiAPI.create({
                                 ...sessionOptions,
                                 monitor: (m) => {
                                     m.addEventListener("downloadprogress", (e) => {
-                                        // 実際のダウンロードが開始され、進行している場合のみ進捗を表示する
                                         if (e.total > 0 && e.loaded > 0) {
                                             const progress = Math.round((e.loaded / e.total) * 100);
                                             this.updateStatus(`🔄 DL中... ${progress}%`, "orange");
@@ -5237,26 +5375,61 @@ sys.stderr = Web_Stdout()
                                 }
                             });
                         } catch (e) {
-                            // モニター非対応環境用のフォールバック
+                            console.warn("Monitor supported failed, falling back to basic create:", e);
                             this.aiSession = await aiAPI.create(sessionOptions);
                         }
 
-                        // 初期化成功時のUI切り替え
+                        // --- 2. Summarizer API の初期化 (独立) ---
+                        if (summarizerAPI) {
+                            try {
+                                // 新仕様(availability)と旧仕様(capabilities)の両方を吸収してチェック
+                                let isAvailable = "no";
+                                if (typeof summarizerAPI.availability === "function") {
+                                    isAvailable = await summarizerAPI.availability();
+                                } else if (typeof summarizerAPI.capabilities === "function") {
+                                    const caps = await summarizerAPI.capabilities();
+                                    isAvailable = caps.available;
+                                }
+                                
+                                console.log("[Summarizer Init] availability:", isAvailable);
+                                
+                                if (isAvailable !== "no") {
+                                    this.summarizerSession = await summarizerAPI.create({
+                                        type: "tldr",        
+                                        format: "plain-text", 
+                                        length: "medium"      
+                                    });
+                                    console.log("[Summarizer Init] Session created successfully.");
+                                } else {
+                                    console.warn("[Summarizer Init] API is disabled or models not ready.");
+                                }
+                            } catch (e) {
+                                console.error("[Summarizer Init] Session creation error:", e);
+                            }
+                        } else {
+                            console.warn("[Summarizer Init] Summarizer API is not defined in this browser.");
+                        }
+
                         this.updateStatus("🟢 準備完了", "green");
-                        this.startBtn.style.display = "none";
                         if (this.langSelect) {
                             this.langSelect.disabled = true; // セッション作成後は言語変更を無効化
                         }
-                        this.inputBox.style.display = "flex";
                         this.sendBtn.disabled = false;
-                        this.userInput.focus();
+                        this.userInput.disabled = false;
+                        return true; // 初期化成功信号を返却
 
                     } catch (error) {
                         console.error("Gemini Nano Init Error:", error);
                         this.updateStatus("❌ 起動失敗", "red");
-                        this.startBtn.disabled = false;
-                        this.startBtn.innerText = "🟢 もう一度起動を試みる";
-                        alert(`セッション作成に失敗しました。\nchrome://components で Optimization Guide が「New」になっているか確認してください。`);
+                        const errMessage = String(error);
+                        // ブラウザ側のAIプロセス強制ロック（クラッシュ超過）を固有エラーとして綺麗に捕捉
+                        if (errMessage.includes("crashed too many times")) {
+                            alert("【致命的なエラー】ブラウザ内部のAIモデルプロセスが短時間に何度もクラッシュしたため、Chromeのセキュリティ制限によりNanoの起動がロックされました。\n\nこれを解決するには、Chromeのウィンドウ（すべてのタブ）を一度完全に閉じて再起動するか、PCを再起動した後に再度お試しください。");
+                        } else {
+                            alert(`セッション作成に失敗しました。\n理由: ${error.message}\nchrome://components で Optimization Guide が「New」になっているか確認してください。`);
+                        }
+                        this.resetUiToReady();
+                        return false; // 初期化失敗信号を返却
                     }
                 }
 
@@ -5277,6 +5450,23 @@ sys.stderr = Web_Stdout()
                         this.aiSession = null;
                     }
 
+                    // 既存のSummarizerセッションを明示的に破棄してリソースを解放
+                    if (this.summarizerSession) {
+                        try {
+                            if (typeof this.summarizerSession.destroy === "function") {
+                                this.summarizerSession.destroy();
+                            }
+                        } catch (error) {
+                            console.warn("Gemini Nano: Failed to destroy summarizer session", error);
+                        }
+                        this.summarizerSession = null;
+                    }
+
+                    // 蓄積された会話履歴ログや要約のステートを完全にクリア
+                    this.chatHistoryLog = [];
+                    this.pendingLogs = [];     // 未要約ログのバッファをリセット
+                    this.currentSummary = "";  // 現在の要約状態をリセット
+
                     // チャットコンテナを初期状態（案内メッセージのみ）にクリア
                     if (this.chatContainer) {
                         this.chatContainer.innerHTML = `
@@ -5291,24 +5481,23 @@ sys.stderr = Web_Stdout()
 
                     // 各種UI要素の状態を初期（未起動時）の状態へ巻き戻す
                     this.updateStatus("未起動", "#aaa");
-                    if (this.startBtn) {
-                        this.startBtn.style.display = "block";
-                        this.startBtn.disabled = false;
-                        this.startBtn.innerText = "🟢 AIを起動する";
-                    }
                     if (this.langSelect) {
                         this.langSelect.disabled = false; // リセット時は再度選択可能にする
                     }
                     if (this.inputBox) {
-                        this.inputBox.style.display = "none";
+                        this.inputBox.style.display = "flex"; // 常に入力欄を表示する新仕様に合わせ、noneからflexへ修正
                     }
                     if (this.userInput) {
                         this.userInput.value = "";
                         this.userInput.disabled = false;
                     }
                     if (this.sendBtn) {
-                        this.sendBtn.disabled = true;
+                        this.sendBtn.disabled = false; // 送信ボタンを有効化して初回起動を待てる状態にする
+                        this.sendBtn.textContent = "送信";
+                        this.sendBtn.style.backgroundColor = "#007acc";
                     }
+
+                    this.isFirstSession = true; // 初回起動フラグをリセット
 
                     // 文脈のリセットに伴い、エージェント用の代理記憶オブジェクトもクリア
                     window.agent_memory = {};
@@ -5320,6 +5509,60 @@ sys.stderr = Web_Stdout()
                     if (this.statusElement) {
                         this.statusElement.innerText = text;
                         this.statusElement.style.color = color;
+                    }
+                }
+
+                // 蓄積された会話ログから指定フォーマットの要約を非同期生成する関数
+                async generateSummary() {
+                    console.log("[Summarizer Debug] generateSummary() called.");
+                    console.log("[Summarizer Debug] pendingLogs length:", this.pendingLogs.length);
+                    console.log("[Summarizer Debug] summarizerSession exists?:", !!this.summarizerSession);
+
+                    // Summary modeがOFFの場合は要約を生成せず、蓄積バッファをクリアして空文字を返す
+                    if (this.summaryToggle && !this.summaryToggle.checked) {
+                        console.log("[Summarizer] Summary mode is disabled by toggle.");
+                        this.pendingLogs = []; 
+                        return "";
+                    }
+
+                    if (!this.summarizerSession || this.pendingLogs.length === 0) {
+                        console.log("[Summarizer Debug] Skipping summary generation. Returning currentSummary.");
+                        return this.currentSummary; // 変化がない場合は現在の要約をそのまま返す
+                    }
+
+                    // バッファにある未要約ログをテキスト化
+                    const newRawLog = this.pendingLogs.map(log => {
+                        const speaker = log.role === "user" ? "User" : (log.role === "system" ? "System" : "AI");
+                        return `[${speaker}]: ${log.content}`;
+                    }).join("\n");
+
+                    // サマライザーに渡すプロンプトを構築（前回の要約情報もインジェクションする）
+                    const promptForSummary = `
+[前回の要約]
+${this.currentSummary || "なし（これが最初の会話です）"}
+
+[追加された会話履歴]
+${newRawLog}`;
+
+                    console.log("[Summarizer Debug] --- Input Prompt to Summarizer ---\n", promptForSummary);
+
+                    try {
+                        // 差分要約を実行
+                        console.log("[Summarizer Debug] Executing summarize()...");
+                        const updatedSummary = await this.summarizerSession.summarize(promptForSummary);
+                        console.log("[Summarizer Debug] --- Output from Summarizer ---\n", updatedSummary);
+
+                        // メモリ効率のため、要約が成功したらバッファをクリアして状態を更新
+                        this.pendingLogs = [];
+                        this.currentSummary = updatedSummary;
+
+                        // 要約結果をチャット欄に表示（senderに "summary" を指定して無限ループを防止）
+                        this.appendMessage(`📝 【会話タイムライン要約】\n${updatedSummary}`, "summary");
+
+                        return this.currentSummary;
+                    } catch (error) {
+                        console.error("[Summarizer Debug] Failed to update rolling summary:", error);
+                        return this.currentSummary; // エラー時は前回の要約で凌ぐ（フォールバック）
                     }
                 }
 
@@ -5385,8 +5628,8 @@ sys.stderr = Web_Stdout()
                         return; // ここで処理を遮断し、自動フィードバックループを止めます
                     }
 
-                    if (commandData.cmd === "No_Command" || commandData.cmd === "Multiple_commands") {
-                        // 未検出または複数検出時のフィードバック通知
+                    if (commandData.cmd === "No_Command" || commandData.cmd === "Multiple_commands" || commandData.cmd === "JSON_Parse_Error") {
+                        // 未検出、複数検出、またはパースエラー時のフィードバック通知
                         this.sendSystemFeedback(JSON.stringify(commandData, null, 4));
                         return;
                     }
@@ -5420,6 +5663,13 @@ sys.stderr = Web_Stdout()
                         } else if (commandData.cmd === "goal_achieved" && commandData.message) {
                             // 目的達成通知
                             alert("目的達成:\n" + commandData.message);
+                        } else {
+                            // 想定外のコマンド（AIが自分でscript_resultを出すなど）へのフォールバック
+                            const errorMsg = {
+                                "cmd": "Invalid_Command",
+                                "message": `システム通知: '${commandData.cmd}' はあなたが送信できるコマンドではありません。Pythonコードを実行して結果を得たい場合は、必ず 'script_run_request' コマンドを使用してコードを提出してください。`
+                            };
+                            this.sendSystemFeedback(JSON.stringify(errorMsg, null, 4));
                         }
                     } catch (error) {
                         console.error("Command execution error:", error);
@@ -5438,12 +5688,16 @@ sys.stderr = Web_Stdout()
                         return;
                     }
 
-                    // AI出力用のプレースホルダーをUI（チャットサイドバー）に反映
-                    const aiMsgDiv = this.appendMessage("...", "ai");
+                    // 自律ループ駆動の直前に最新の要約（State）を生成・更新して画面表示
+                    const summary = await this.generateSummary();
+
+                    // AI出力用のプレースホルダーをUI（チャットサイドバー）に反映（サマリーの後に生成）
+                    const aiMsgDiv = this.appendMessage("...", "ai", false);
 
                     // 応答中の状態を設定し、UIを「中断」モードへ切り替える
                     this.isGenerating = true;
-                    this.abortController = new AbortController();
+                    const controller = new AbortController();
+                    this.abortController = controller;
 
                     this.userInput.disabled = true;
                     this.sendBtn.textContent = "中断";
@@ -5451,8 +5705,13 @@ sys.stderr = Web_Stdout()
                     this.sendBtn.disabled = false;
 
                     try {
-                        // 自律ループのストリーミングにもシグナルを適用
-                        const stream = this.aiSession.promptStreaming(feedbackText, { signal: this.abortController.signal });
+                        // 要約が存在する場合はシステムフィードバックの先頭に文脈としてドッキング
+                        const combinedFeedback = summary
+                            ? `[現在のタイムライン・文脈要約]\n${summary}\n\n[システムからの新しい実行結果]\n${feedbackText}`
+                            : feedbackText;
+
+                        // 構築したコンパウンド・フィードバックで自律ループのストリーミングを実行
+                        const stream = this.aiSession.promptStreaming(combinedFeedback, { signal: this.abortController.signal });
                         aiMsgDiv.textContent = "";
                         for await (const chunk of stream) {
                             aiMsgDiv.textContent += chunk;
@@ -5472,13 +5731,15 @@ sys.stderr = Web_Stdout()
                         }
                     } finally {
                         // 状態のリセットとUIを通常モードへ戻す処理
-                        this.isGenerating = false;
-                        this.abortController = null;
+                        if (this.abortController === controller) {
+                            this.isGenerating = false;
+                            this.abortController = null;
 
-                        this.userInput.disabled = false;
-                        this.sendBtn.textContent = "送信";
-                        this.sendBtn.style.backgroundColor = "#007acc"; // 元のテーマカラー（青）に戻す
-                        this.sendBtn.disabled = false;
+                            this.userInput.disabled = false;
+                            this.sendBtn.textContent = "送信";
+                            this.sendBtn.style.backgroundColor = "#007acc"; // 元のテーマカラー（青）に戻す
+                            this.sendBtn.disabled = false;
+                        }
                     }
                 }
             }
@@ -5522,11 +5783,11 @@ sys.stderr = Web_Stdout()
                 if (event.source === window.opener && is_allowed_origin) {
                     if (trackAgentResponseStatus(data.cmd)) {
                         alert("【エージェント停止】有効なJSONコマンドが3回連続で検出されなかったため、外部連携ループを自動停止しました。");
-                        
-                        // 呼び出し元のGeminiページ側にも停止メッセージを投げて無限フィードバックを防ぐ
-                        const stopPayload = { 
-                            "cmd": "Agent_Stopped", 
-                            "message": "システム通知: 3回連続で有効なコマンドが検出されなかったため、安全のために自律ループを強制停止しました。" 
+
+                        // 呼び出し元のGemini側にも停止メッセージを投げて無限フィードバックを防ぐ
+                        const stopPayload = {
+                            "cmd": "Agent_Stopped",
+                            "message": "システム通知: 3回連続で有効なコマンドが検出されなかったため、安全のために自律ループを強制停止しました。"
                         };
                         if (window.opener && !window.opener.closed) {
                             window.opener.postMessage(stopPayload, "*");
@@ -5550,7 +5811,7 @@ sys.stderr = Web_Stdout()
                     set_header_buttons_state(true);
                     set_stop_button_state(true);
                     //-------------------------------------------------------- ### Return_Result_to_Gemini
-                    if (data.obj.log) {
+                    if (typeof data.obj.log !== "undefined") {
                         const response_payload = {
                             "cmd": "script_result",
                             "result": data.obj.log
@@ -5643,7 +5904,7 @@ sys.stderr = Web_Stdout()
                 }
 
                 //-------------------------------------------------------- ### Agent_Error: Multiple Commands (複数コマンド検出時の警告)
-                if (data.cmd === "multiple_commands" && data.message) {
+                if (data.cmd === "Multiple_commands" && data.message) {
                     console.warn("Multiple_commands_detected:", data.message);
                     const response_payload = { "cmd": "Multiple_commands", "message": data.message };
                     if (window.opener && !window.opener.closed) {
@@ -5653,7 +5914,7 @@ sys.stderr = Web_Stdout()
                         // 拡張機能への Post Message 処理
                         window.parent.postMessage(response_payload, "*");
                     }
-                    console.log("# host_frame_log : Sent_multiple_commands");
+                    console.log("# host_frame_log : Sent_Multiple_commands");
                     return;
                 }
 
